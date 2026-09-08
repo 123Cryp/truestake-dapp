@@ -1,0 +1,972 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TrueStake — Full-Time Terminal</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg-deep:#0B120D;
+    --bg-panel:#101A13;
+    --bg-panel-raised:#16221A;
+    --line:#25352A;
+    --pitch:#3E9B4F;
+    --pitch-bright:#5FC96F;
+    --chalk:#E9F1EA;
+    --chalk-dim:#8FA396;
+    --slate:#5C6B62;
+    --amber:#D9A33B;
+    --red:#C0524F;
+    --gold:#E4C468;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(ellipse at top, rgba(63,155,79,.08), transparent 55%),
+      var(--bg-deep);
+    color:var(--chalk);
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--pitch-bright);}
+  code{ font-family:'IBM Plex Mono',monospace; }
+
+  header{
+    max-width:1180px;
+    margin:0 auto;
+    padding:44px 20px 26px;
+    border-bottom:1px solid var(--line);
+  }
+  .eyebrow{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    letter-spacing:.16em;
+    text-transform:uppercase;
+    color:var(--pitch-bright);
+    margin:0 0 12px;
+  }
+  h1{
+    font-family:'Oswald',sans-serif;
+    font-weight:700;
+    font-size:clamp(30px,5vw,48px);
+    line-height:1.05;
+    letter-spacing:.01em;
+    margin:0 0 14px;
+    color:var(--chalk);
+    text-transform:uppercase;
+  }
+  h1 em{ font-style:normal; color:var(--gold); }
+  .lede{
+    font-size:16px;
+    line-height:1.6;
+    color:var(--chalk-dim);
+    max-width:640px;
+    margin:0 0 6px;
+  }
+  .addr-line{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--chalk-dim);
+    margin-top:16px;
+    padding-top:16px;
+    border-top:1px dashed var(--line);
+  }
+  .addr-line code{ color:var(--gold); word-break:break-all; }
+  .status-pill{
+    display:flex;
+    flex-wrap:wrap;
+    align-items:center;
+    gap:8px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    color:var(--chalk-dim);
+    border:1px solid var(--line);
+    border-radius:4px;
+    padding:10px 14px;
+    margin-top:14px;
+  }
+  .dot{ width:7px; height:7px; border-radius:50%; background:var(--slate); flex-shrink:0; }
+  .dot.on{ background:var(--pitch-bright); box-shadow:0 0 8px var(--pitch-bright); }
+  .status-pill button{
+    background:none;border:1px solid var(--line);color:var(--pitch-bright);
+    font-family:'IBM Plex Mono',monospace;font-size:11.5px;cursor:pointer;
+    padding:6px 10px;border-radius:4px;
+  }
+  .status-pill button:hover{ border-color:var(--pitch); }
+
+  main{
+    max-width:1180px;
+    margin:0 auto;
+    padding:32px 20px 80px;
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:18px;
+  }
+  @media (max-width:920px){ main{ grid-template-columns:1fr; } }
+
+  .col{ display:flex; flex-direction:column; gap:18px; }
+
+  .panel{
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-left:3px solid var(--pitch);
+    border-radius:2px;
+    padding:22px;
+  }
+  .panel h2{
+    font-family:'Oswald',sans-serif;
+    text-transform:uppercase;
+    letter-spacing:.03em;
+    font-size:18px;
+    font-weight:600;
+    margin:0 0 4px;
+  }
+  .panel .desc{
+    font-size:13px;
+    color:var(--chalk-dim);
+    margin:0 0 16px;
+    line-height:1.5;
+  }
+  label{
+    display:block;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:11px;
+    letter-spacing:.05em;
+    text-transform:uppercase;
+    color:var(--chalk-dim);
+    margin:12px 0 6px;
+  }
+  label:first-of-type{ margin-top:0; }
+  input[type=text], input[type=datetime-local], textarea, select{
+    width:100%;
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line);
+    border-radius:3px;
+    color:var(--chalk);
+    font-family:'Inter',sans-serif;
+    font-size:13.5px;
+    padding:9px 10px;
+  }
+  textarea{ font-family:'IBM Plex Mono',monospace; font-size:12.5px; resize:vertical; min-height:70px; }
+  input:focus, textarea:focus, select:focus{ outline:2px solid var(--pitch); outline-offset:1px; }
+  .hint{ font-size:11.5px; color:var(--slate); margin-top:4px; }
+  .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+
+  button.primary, button.secondary{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px;
+    letter-spacing:.03em;
+    text-transform:uppercase;
+    padding:10px 16px;
+    border-radius:3px;
+    cursor:pointer;
+    margin-top:16px;
+    margin-right:8px;
+  }
+  button.primary{ background:var(--pitch); border:1px solid var(--pitch); color:#04220A; font-weight:600; }
+  button.primary:hover{ background:var(--pitch-bright); }
+  button.secondary{ background:none; border:1px solid var(--line); color:var(--chalk-dim); }
+  button.secondary:hover{ border-color:var(--red); color:var(--red); }
+
+  .out{
+    display:none;
+    margin-top:14px;
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line);
+    border-radius:3px;
+    padding:12px;
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12px;
+    white-space:pre-wrap;
+    word-break:break-word;
+    max-height:340px;
+    overflow:auto;
+    color:var(--chalk-dim);
+  }
+  .out.ok{ border-color:var(--pitch); color:var(--chalk); }
+  .out.err{ border-color:var(--red); color:#F0BFBD; }
+
+  .verdict-hero{
+    display:none;
+    text-align:center;
+    padding:20px;
+    margin-bottom:16px;
+    background:var(--bg-panel-raised);
+    border:1px solid var(--line);
+    border-radius:3px;
+  }
+  .verdict-hero .vlabel{ font-family:'IBM Plex Mono',monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; color:var(--chalk-dim); }
+  .verdict-hero .vvalue{ font-family:'Oswald',sans-serif; font-size:40px; font-weight:700; text-transform:uppercase; margin:4px 0; }
+  .verdict-hero .vwinner{ font-family:'IBM Plex Mono',monospace; font-size:13px; color:var(--chalk-dim); }
+
+  .field-row{ display:flex; justify-content:space-between; gap:12px; padding:7px 0; border-bottom:1px solid var(--line); font-size:12.5px; }
+  .field-row .k{ font-family:'IBM Plex Mono',monospace; color:var(--chalk-dim); flex-shrink:0; }
+  .field-row .v{ font-family:'IBM Plex Mono',monospace; color:var(--chalk); text-align:right; word-break:break-word; }
+
+  .badge{ display:inline-block; padding:2px 8px; border-radius:3px; font-size:11px; font-family:'IBM Plex Mono',monospace; text-transform:uppercase; }
+  .badge-status-pending_acceptance{ background:rgba(217,163,59,.16); color:var(--amber); }
+  .badge-status-open{ background:rgba(63,155,79,.18); color:var(--pitch-bright); }
+  .badge-status-resolved{ background:rgba(228,196,104,.16); color:var(--gold); }
+  .badge-status-expired, .badge-status-cancelled{ background:rgba(192,82,79,.16); color:var(--red); }
+  .badge-cmp-Above{ background:rgba(63,155,79,.18); color:var(--pitch-bright); }
+  .badge-cmp-Below{ background:rgba(192,82,79,.16); color:var(--red); }
+  .badge-cmp-Equal{ background:rgba(217,163,59,.16); color:var(--amber); }
+  .badge-cmp-Unclear{ background:rgba(140,153,168,.14); color:var(--chalk-dim); }
+
+  .evidence-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; padding:8px 0; border-bottom:1px solid var(--line); font-size:12px; }
+  .evidence-row .domain{ font-family:'IBM Plex Mono',monospace; color:var(--chalk); }
+  .evidence-row .flag{ font-family:'IBM Plex Mono',monospace; color:var(--chalk-dim); font-size:11px; }
+  .evidence-empty{ font-size:12.5px; color:var(--slate); font-style:italic; }
+
+  footer{
+    max-width:1180px; margin:0 auto; padding:24px 20px 60px;
+    font-size:12px; color:var(--slate); line-height:1.6;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <p class="eyebrow">GenLayer Intelligent Contract · Sports Vertical · Escrow</p>
+  <h1>True<em>Stake</em></h1>
+  <p class="lede">
+    A two-party, address-bound, deadline-gated, multi-source sports score
+    settlement contract that also custodies both parties' GEN stakes and
+    pays the winner automatically, on-chain. Party binding, a single-day
+    resolution window after full-time, mandatory corroboration from at
+    least two reputable sports outlets, and a permissionless
+    pull-payment withdrawal — no side ever settles a match on one page,
+    and no GEN moves until a real verdict (or an explicit refund path)
+    says it should.
+  </p>
+  <div class="addr-line">Contract address: <code id="contractAddrText">—</code></div>
+  <div class="status-pill">
+    <span class="dot" id="statusDot"></span>
+    <span id="statusText">Not connected</span>
+    <button id="connectBtn" type="button">Connect MetaMask</button>
+    <button id="testSessionBtn" type="button">Start test session</button>
+    <span id="testSessionNote" style="display:none;">Test session key lives only in this tab — refresh loses it.</span>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+
+    <section class="panel">
+      <h2>Create Agreement</h2>
+      <p class="desc">Caller becomes party_a automatically. party_b must accept — sending an identical stake — before the agreement binds.</p>
+
+      <label for="stakeAmount">Your stake (GEN)</label>
+      <input type="text" id="stakeAmount" placeholder="1">
+      <p class="hint">Sent as native GEN value alongside this call. Whatever you enter here becomes <code>stake_amount</code> — party_b must send exactly this much to accept. Minimum 0.001 GEN.</p>
+
+      <label for="partyB">Party B address</label>
+      <input type="text" id="partyB" placeholder="0x…">
+
+      <label for="teams">Fixture (Team A vs Team B)</label>
+      <input type="text" id="teams" placeholder="Manchester United vs Liverpool">
+
+      <label for="matchDate">Match date</label>
+      <input type="text" id="matchDate" placeholder="2026-09-05">
+
+      <div class="row2">
+        <div>
+          <label for="threshold">Threshold (total goals)</label>
+          <input type="text" id="threshold" placeholder="2.5">
+        </div>
+        <div>
+          <label for="comparison">Comparison</label>
+          <select id="comparison">
+            <option value="above">above (over)</option>
+            <option value="below">below (under)</option>
+          </select>
+        </div>
+      </div>
+
+      <label for="description">Description</label>
+      <input type="text" id="description" placeholder="Total combined goals over/under 2.5" maxlength="200">
+
+      <label for="deadline">Resolution deadline (expected full-time, local time)</label>
+      <input type="datetime-local" id="deadline">
+      <p class="hint">Must be 2 hours – 7 days from now. Resolution window closes 24h after this.</p>
+
+      <label for="requiredDomains">Required source domains (comma-separated, 2–6, from the allowlist)</label>
+      <textarea id="requiredDomains">espn.com, bbc.com/sport</textarea>
+      <p class="hint">Allowlist: espn.com, bbc.com, skysports.com, reuters.com, ap.org, goal.com, fifa.com, nba.com, nfl.com, nhl.com, mlb.com, thescore.com, flashscore.com, sportsmole.co.uk. A domain entry may optionally pin a path, e.g. "bbc.com/sport".</p>
+
+      <button class="primary" id="createBtn" type="button">Create agreement</button>
+      <div class="out" id="createOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Accept / Cancel Agreement</h2>
+      <p class="desc">Only party_b can accept, and only by sending EXACTLY party_a's stake. Only party_a can cancel (and only before acceptance) — cancelling refunds party_a's stake for withdrawal.</p>
+
+      <label for="acceptId">Agreement ID</label>
+      <input type="text" id="acceptId" placeholder="0">
+
+      <label for="acceptStake">Stake to send (GEN) — must match party_a's exactly</label>
+      <input type="text" id="acceptStake" placeholder="1">
+      <button class="secondary" id="loadStakeBtn" type="button">Load exact amount from agreement</button>
+      <p class="hint">Looks up this agreement's <code>stake_amount</code> on-chain and fills the field above, so you never have to guess or retype it by hand.</p>
+
+      <button class="primary" id="acceptBtn" type="button">Accept (party_b)</button>
+      <button class="secondary" id="cancelBtn" type="button">Cancel (party_a)</button>
+      <div class="out" id="acceptOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Resolve Agreement</h2>
+      <p class="desc">Only callable after the deadline (full-time) and before the 24h resolution window closes. Every committed domain (and pinned path) must be represented.</p>
+
+      <label for="resolveId">Agreement ID</label>
+      <input type="text" id="resolveId" placeholder="0">
+
+      <label for="sourceUrls">Source URLs (one per line, 2–6)</label>
+      <textarea id="sourceUrls" placeholder="https://espn.com/soccer/match/...&#10;https://bbc.com/sport/football/..."></textarea>
+      <p class="hint">On the FIRST successful attempt, this exact set of URLs is locked for this agreement — every later retry must resubmit the same set.</p>
+
+      <button class="primary" id="resolveBtn" type="button">Resolve</button>
+      <div class="out" id="resolveOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Expire Agreement</h2>
+      <p class="desc">Permissionless. Moves a lapsed agreement (never accepted, or never resolved in time) to "expired" and credits the relevant stake(s) back to their own depositor — party_a only if party_b never accepted, both parties equally if the resolution window closed unresolved.</p>
+
+      <label for="expireId">Agreement ID</label>
+      <input type="text" id="expireId" placeholder="0">
+
+      <button class="primary" id="expireBtn" type="button">Expire</button>
+      <div class="out" id="expireOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Withdraw &amp; Balances</h2>
+      <p class="desc">
+        Payouts and refunds are never pushed automatically — they only credit an internal balance.
+        <code>withdraw()</code> is the one method that actually moves GEN, and it always sends the
+        <strong>caller's own</strong> full credited balance (from every agreement combined) to the caller's own wallet.
+      </p>
+
+      <label for="withdrawCheckAddr">Check pending balance for address</label>
+      <input type="text" id="withdrawCheckAddr" placeholder="0…">
+      <button class="secondary" id="checkPendingBtn" type="button">Check pending withdrawal</button>
+      <div class="out" id="pendingOut"></div>
+
+      <button class="primary" id="withdrawBtn" type="button" style="margin-top:14px;">Withdraw my balance</button>
+      <p class="hint">Sends whatever is currently credited to the connected wallet — no agreement ID needed.</p>
+      <div class="out" id="withdrawOut"></div>
+
+      <button class="secondary" id="contractBalanceBtn" type="button" style="margin-top:14px;">Fetch total contract balance</button>
+      <p class="hint">Total GEN this contract currently custodies — the sum of every escrowed stake not yet resolved/refunded, plus every credited balance not yet withdrawn. Useful as an independent solvency check.</p>
+      <div class="out" id="contractBalanceOut"></div>
+    </section>
+
+  </div>
+
+  <div class="col">
+
+    <section class="panel">
+      <h2>Read Agreement</h2>
+      <p class="desc">Full auditable record: parties, fixture, terms, timing, status, and (once attempted) the per-source evidence trail.</p>
+
+      <label for="readId">Agreement ID</label>
+      <input type="text" id="readId" placeholder="0">
+      <button class="primary" id="readBtn" type="button">Read</button>
+
+      <div class="verdict-hero" id="verdictHero">
+        <div class="vlabel">Final verdict</div>
+        <div class="vvalue" id="verdictValue">—</div>
+        <div class="vwinner" id="verdictWinner">—</div>
+      </div>
+
+      <div id="fieldsList"></div>
+
+      <h2 style="margin-top:20px;">Evidence</h2>
+      <div id="evidenceList"></div>
+
+      <div class="out" id="readOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Check Role</h2>
+      <p class="desc">Look up whether an address is party_a, party_b, or unrelated to a given agreement.</p>
+
+      <label for="roleId">Agreement ID</label>
+      <input type="text" id="roleId" placeholder="0">
+      <label for="roleAddr">Address</label>
+      <input type="text" id="roleAddr" placeholder="0x…">
+
+      <button class="primary" id="roleBtn" type="button">Check role</button>
+      <div class="out" id="roleOut"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Total Agreements</h2>
+      <p class="desc">Total number of agreements ever created on this contract instance.</p>
+
+      <button class="primary" id="totalBtn" type="button">Fetch total_agreements</button>
+      <div class="out" id="totalOut"></div>
+    </section>
+
+  </div>
+</main>
+
+<footer>
+  TrueStake dApp — a minimal reference frontend built with <code>genlayer-js</code>.
+  Every dynamic value on this page is written with <code>textContent</code>/<code>createElement</code> only —
+  <code>innerHTML</code> is never used, so data returned from the contract or fetched off-chain can never be
+  interpreted as HTML/script by this page.
+  Source: <a href="https://github.com/123Cryp" target="_blank" rel="noopener">github.com/123Cryp</a>.
+</footer>
+
+<script type="module">
+import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
+import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
+
+// ------------------------------------------------------------------
+// EDIT THIS after you deploy TrueStake's contract.py — paste the
+// deployed address here (from the Studio/explorer "Deployed at" field).
+// ------------------------------------------------------------------
+const CONTRACT_ADDRESS = "0x0000000000000000000000000000000000000000";
+
+document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
+
+let client = null;
+let account = null;
+
+const statusDot = document.getElementById('statusDot');
+const statusText = document.getElementById('statusText');
+const connectBtn = document.getElementById('connectBtn');
+const testSessionBtn = document.getElementById('testSessionBtn');
+const testSessionNote = document.getElementById('testSessionNote');
+
+function setStatus(connected, label){
+  statusDot.classList.toggle('on', connected);
+  statusText.textContent = label;
+}
+
+async function connectWallet(){
+  if (!window.ethereum) {
+    setStatus(false, 'No injected wallet found — install MetaMask, or use "start test session" instead');
+    return;
+  }
+  try {
+    const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+    account = accounts[0];
+    client = createClient({ chain: studionet, account });
+    setStatus(true, `Connected (MetaMask) · ${account.slice(0,6)}…${account.slice(-4)}`);
+    connectBtn.textContent = 'reconnect';
+    testSessionNote.style.display = 'none';
+  } catch (err) {
+    setStatus(false, 'Connection rejected');
+  }
+}
+connectBtn.addEventListener('click', connectWallet);
+
+function startTestSession(){
+  const generated = createAccount();
+  account = generated.address ?? generated;
+  client = createClient({ chain: studionet, account: generated });
+  setStatus(true, `Connected (test session) · ${account.slice(0,6)}…${account.slice(-4)}`);
+  testSessionBtn.textContent = 'new test session';
+  testSessionNote.style.display = 'block';
+}
+testSessionBtn.addEventListener('click', startTestSession);
+
+// Read-only client, usable even without a wallet connection.
+const readClient = createClient({ chain: studionet });
+
+// ------------------------------------------------------------------
+// DOM-safety helpers. Every dynamic value on this page goes through
+// one of these — textContent for plain text, createElement for
+// structure. innerHTML is never used anywhere in this file, so
+// contract output or fetched content can never be parsed as markup.
+// ------------------------------------------------------------------
+function clearChildren(node){
+  while (node.firstChild) node.removeChild(node.firstChild);
+}
+
+function makeEl(tag, opts, children){
+  const node = document.createElement(tag);
+  if (opts) {
+    if (opts.className) node.className = opts.className;
+    if (opts.text !== undefined) node.textContent = opts.text;
+  }
+  if (children) {
+    for (const child of children) node.appendChild(child);
+  }
+  return node;
+}
+
+function showOut(el, text, kind){
+  el.style.display = 'block';
+  el.className = 'out' + (kind ? ' ' + kind : '');
+  el.textContent = text; // safe: textContent never interprets markup
+}
+
+function parseCommaList(raw){
+  return raw.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+function parseLineList(raw){
+  return raw.split('\n').map(s => s.trim()).filter(Boolean);
+}
+
+/**
+ * Convert a <input type="datetime-local"> value (local time, no
+ * timezone) into an ISO-8601 UTC string ending in "Z", which is what
+ * the contract's resolution_deadline parameter expects.
+ */
+function localInputToIsoUtc(localValue){
+  const d = new Date(localValue); // interpreted as local time by the Date constructor
+  if (isNaN(d.getTime())) return null;
+  return d.toISOString(); // always UTC, always ends in "Z"
+}
+
+function defaultDeadlineLocalValue(){
+  const future = new Date(Date.now() + 3 * 3600000); // now + 3 hours
+  const tzOffsetMs = future.getTimezoneOffset() * 60000;
+  const local = new Date(future.getTime() - tzOffsetMs);
+  return local.toISOString().slice(0, 16); // "YYYY-MM-DDTHH:MM"
+}
+document.getElementById('deadline').value = defaultDeadlineLocalValue();
+
+/**
+ * Extract the contract method's actual return value from a GenLayer
+ * transaction receipt. The leader's decoded return value is nested at
+ * receipt.consensus_data.leader_receipt[0].result.payload.readable as
+ * a JSON-encoded string (e.g. '"0"' for a bare string return, or a
+ * JSON string of a JSON string for methods that themselves return
+ * json.dumps(...), like resolve_agreement/get_agreement). This
+ * unwraps that nesting generically.
+ */
+function extractReturnValue(receipt){
+  const payload = receipt?.consensus_data?.leader_receipt?.[0]?.result?.payload?.readable;
+  if (payload === undefined) return null;
+  let value = payload;
+  for (let i = 0; i < 3; i++) {
+    if (typeof value !== 'string') break;
+    const trimmed = value.trim();
+    const looksLikeJson = trimmed.startsWith('{') || trimmed.startsWith('[') || trimmed.startsWith('"');
+    if (!looksLikeJson) break;
+    try { value = JSON.parse(value); } catch (e) { break; }
+  }
+  return value;
+}
+
+function requireClient(out){
+  if (!client) {
+    showOut(out, 'Connect a wallet first (MetaMask or test session).', 'err');
+    return false;
+  }
+  return true;
+}
+
+// ------------------------------------------------------------------
+// GEN <-> wei helpers. Every form field on this page asks for a
+// human-friendly GEN amount; the contract itself only ever deals in
+// wei (1 GEN = 10^18 wei) via `gl.message.value`, so every value we
+// hand to `client.writeContract({ value })` is converted here, once,
+// as a BigInt — never as a floating-point number, since GEN amounts
+// need exact integer wei precision that JS numbers can't guarantee
+// past 2^53.
+// ------------------------------------------------------------------
+const WEI_PER_GEN = 1000000000000000000n;
+
+function genToWei(genStr){
+  const trimmed = String(genStr).trim();
+  if (!trimmed) return null;
+  const parts = trimmed.split('.');
+  if (parts.length > 2) return null;
+  const whole = parts[0] || '0';
+  let frac = parts[1] || '';
+  if (!/^\d+$/.test(whole) || (frac && !/^\d+$/.test(frac))) return null;
+  if (frac.length > 18) return null;
+  frac = frac.padEnd(18, '0');
+  try {
+    return BigInt(whole) * WEI_PER_GEN + BigInt(frac || '0');
+  } catch (e) {
+    return null;
+  }
+}
+
+function weiToGenString(weiValue){
+  let wei;
+  try { wei = BigInt(weiValue); } catch (e) { return String(weiValue); }
+  const whole = wei / WEI_PER_GEN;
+  const frac = (wei % WEI_PER_GEN).toString().padStart(18, '0').replace(/0+$/, '');
+  return frac ? `${whole}.${frac}` : whole.toString();
+}
+
+// ---------- 01: Create Agreement ----------
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const out = document.getElementById('createOut');
+  if (!requireClient(out)) return;
+
+  const stakeGen = document.getElementById('stakeAmount').value.trim();
+  const partyB = document.getElementById('partyB').value.trim();
+  const teams = document.getElementById('teams').value.trim();
+  const matchDate = document.getElementById('matchDate').value.trim();
+  const threshold = document.getElementById('threshold').value.trim();
+  const comparison = document.getElementById('comparison').value;
+  const description = document.getElementById('description').value.trim();
+  const deadlineLocal = document.getElementById('deadline').value;
+  const domains = parseCommaList(document.getElementById('requiredDomains').value);
+
+  const stakeWei = genToWei(stakeGen);
+  if (stakeWei === null || stakeWei <= 0n) { showOut(out, 'Enter a valid, positive stake amount in GEN.', 'err'); return; }
+  if (!partyB) { showOut(out, "Enter party B's address.", 'err'); return; }
+  if (!teams.toLowerCase().includes(' vs ')) { showOut(out, 'Enter teams as "Team A vs Team B".', 'err'); return; }
+  if (!matchDate) { showOut(out, 'Enter the match date.', 'err'); return; }
+  const deadlineIso = localInputToIsoUtc(deadlineLocal);
+  if (!deadlineIso) { showOut(out, 'Enter a valid resolution deadline.', 'err'); return; }
+  if (domains.length < 2) { showOut(out, 'Enter at least 2 required source domains.', 'err'); return; }
+
+  const args = [partyB, teams, matchDate, threshold, comparison, description, deadlineIso, domains];
+
+  try {
+    showOut(out, `Submitting transaction with ${stakeGen} GEN stake…`);
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS,
+      functionName: 'create_agreement',
+      args,
+      value: stakeWei,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const agreementId = extractReturnValue(receipt);
+    if (agreementId !== null && agreementId !== undefined) {
+      showOut(out, `Agreement created. ID: ${agreementId} · stake: ${stakeGen} GEN\n\nTx: ${txHash}`, 'ok');
+      document.getElementById('acceptId').value = String(agreementId);
+      document.getElementById('acceptStake').value = stakeGen;
+      document.getElementById('resolveId').value = String(agreementId);
+      document.getElementById('expireId').value = String(agreementId);
+      document.getElementById('readId').value = String(agreementId);
+    } else {
+      showOut(out, `Finalized, but the agreement ID could not be auto-detected.\nCheck the explorer.\n\nTx: ${txHash}`, 'ok');
+    }
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ---------- 02: Accept / Cancel Agreement ----------
+document.getElementById('loadStakeBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  const id = document.getElementById('acceptId').value.trim();
+  if (!id) { showOut(out, 'Enter an agreement ID first.', 'err'); return; }
+  try {
+    showOut(out, 'Reading contract state…');
+    const raw = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_agreement', args: [id],
+    });
+    const agreement = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    if (!agreement.stake_amount) { showOut(out, 'No stake_amount found on this agreement.', 'err'); return; }
+    const genValue = weiToGenString(agreement.stake_amount);
+    document.getElementById('acceptStake').value = genValue;
+    showOut(out, `Loaded: ${genValue} GEN (${agreement.stake_amount} wei).`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+document.getElementById('acceptBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('acceptId').value.trim();
+  const stakeGen = document.getElementById('acceptStake').value.trim();
+  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
+  const stakeWei = genToWei(stakeGen);
+  if (stakeWei === null || stakeWei <= 0n) { showOut(out, 'Enter a valid stake amount in GEN (use "Load exact amount" if unsure).', 'err'); return; }
+  try {
+    showOut(out, `Submitting transaction with ${stakeGen} GEN…`);
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'accept_agreement', args: [id], value: stakeWei,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Accepted.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+document.getElementById('cancelBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('acceptId').value.trim();
+  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
+  try {
+    showOut(out, 'Submitting transaction…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'cancel_agreement', args: [id], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Cancelled.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ---------- 03: Resolve Agreement ----------
+document.getElementById('resolveBtn').addEventListener('click', async () => {
+  const out = document.getElementById('resolveOut');
+  if (!requireClient(out)) return;
+
+  const id = document.getElementById('resolveId').value.trim();
+  const urls = parseLineList(document.getElementById('sourceUrls').value);
+
+  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
+  if (urls.length < 2 || urls.length > 6) {
+    showOut(out, 'Provide 2–6 source URLs (one per line).', 'err');
+    return;
+  }
+
+  try {
+    showOut(out, 'Submitting transaction — this triggers live fetch + LLM extraction under validator consensus, it can take a while…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'resolve_agreement', args: [id, urls], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization — this runs a real fetch + LLM extraction per source, so it can take a few minutes…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 5000, retries: 90,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Resolved.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : JSON.stringify(receipt, null, 2)}`, 'ok');
+    document.getElementById('readId').value = id;
+    fetchAgreement(id);
+  } catch (err) {
+    const message = err?.message || String(err);
+    if (/timed out/i.test(message)) {
+      showOut(out, `${message}\n\nThis is just the browser giving up on waiting — the transaction may still finalize on-chain. Wait, then use "Read Agreement" with the same ID.`, 'err');
+    } else {
+      showOut(out, 'Error: ' + message, 'err');
+    }
+  }
+});
+
+// ---------- 04: Expire Agreement ----------
+document.getElementById('expireBtn').addEventListener('click', async () => {
+  const out = document.getElementById('expireOut');
+  if (!requireClient(out)) return;
+  const id = document.getElementById('expireId').value.trim();
+  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
+  try {
+    showOut(out, 'Submitting transaction…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'expire_agreement', args: [id], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Expired.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ---------- 05: Read Agreement ----------
+document.getElementById('readBtn').addEventListener('click', () => {
+  const id = document.getElementById('readId').value.trim();
+  if (!id) return;
+  fetchAgreement(id);
+});
+
+async function fetchAgreement(id){
+  const out = document.getElementById('readOut');
+  try {
+    showOut(out, 'Reading contract state…');
+    const raw = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_agreement', args: [id],
+    });
+    const agreement = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    showOut(out, JSON.stringify(agreement, null, 2), 'ok');
+    renderAgreement(agreement);
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+    const evidenceList = document.getElementById('evidenceList');
+    clearChildren(evidenceList);
+    evidenceList.appendChild(makeEl('p', { className: 'evidence-empty', text: 'Could not load agreement.' }));
+    document.getElementById('verdictHero').style.display = 'none';
+    clearChildren(document.getElementById('fieldsList'));
+  }
+}
+
+/**
+ * Renders the agreement summary and evidence records using ONLY
+ * document.createElement / textContent — never innerHTML — so that
+ * every string here (party addresses, description, team names,
+ * domains, URLs, quality flags, etc.) is treated strictly as text by
+ * the DOM and can never be interpreted as markup, even if a
+ * malicious value somehow made it into contract storage.
+ */
+function renderAgreement(agreement){
+  const verdictHero = document.getElementById('verdictHero');
+  const verdictValue = document.getElementById('verdictValue');
+  const verdictWinner = document.getElementById('verdictWinner');
+  const fieldsList = document.getElementById('fieldsList');
+  const evidenceList = document.getElementById('evidenceList');
+
+  if (agreement.final_verdict) {
+    verdictHero.style.display = 'block';
+    verdictValue.textContent = agreement.final_verdict;
+    verdictValue.style.color =
+      agreement.final_verdict === 'Above' ? 'var(--pitch-bright)' :
+      agreement.final_verdict === 'Below' ? 'var(--red)' :
+      'var(--amber)';
+    verdictWinner.textContent = (agreement.winner && agreement.winner !== 'unresolved')
+      ? `Winner: ${agreement.winner}` : 'Not yet resolved';
+  } else {
+    verdictHero.style.display = 'none';
+  }
+
+  clearChildren(fieldsList);
+  const statusBadge = makeEl('span', {
+    className: 'badge badge-status-' + (agreement.status || ''),
+    text: agreement.status || '—',
+  });
+  const rows = [
+    ['status', null, statusBadge],
+    ['party_a', agreement.party_a],
+    ['party_b', agreement.party_b],
+    ['stake_amount', agreement.stake_amount ? `${weiToGenString(agreement.stake_amount)} GEN (${agreement.stake_amount} wei)` : null],
+    ['party_a_funded', agreement.party_a_funded === undefined ? null : String(agreement.party_a_funded)],
+    ['party_b_funded', agreement.party_b_funded === undefined ? null : String(agreement.party_b_funded)],
+    ['payout_settled', agreement.payout_settled === undefined ? null : String(agreement.payout_settled)],
+    ['refunded', agreement.refunded === undefined ? null : String(agreement.refunded)],
+    ['teams', agreement.teams],
+    ['match_date', agreement.match_date],
+    ['threshold_score', agreement.threshold_score],
+    ['comparison', agreement.comparison],
+    ['description', agreement.description],
+    ['required_source_domains', (agreement.required_source_domains || []).join(', ')],
+    ['locked_source_urls', (agreement.locked_source_urls || []).join(', ')],
+    ['created_at', agreement.created_at],
+    ['resolution_deadline', agreement.resolution_deadline],
+    ['resolution_window_closes_at', agreement.resolution_window_closes_at],
+    ['accepted_at', agreement.accepted_at],
+    ['resolved_at', agreement.resolved_at],
+    ['resolution_attempts', agreement.resolution_attempts],
+  ];
+  for (const [key, value, customValueNode] of rows) {
+    const kSpan = makeEl('span', { className: 'k', text: key });
+    const vSpan = customValueNode
+      ? makeEl('span', { className: 'v' }, [customValueNode])
+      : makeEl('span', { className: 'v', text: (value === null || value === undefined || value === '') ? '—' : String(value) });
+    fieldsList.appendChild(makeEl('div', { className: 'field-row' }, [kSpan, vSpan]));
+  }
+
+  clearChildren(evidenceList);
+  const records = agreement.records || [];
+  if (!records.length) {
+    evidenceList.appendChild(makeEl('p', { className: 'evidence-empty', text: 'No resolution evidence yet — call resolve_agreement.' }));
+    return;
+  }
+  for (const r of records) {
+    const domainSpan = makeEl('span', { className: 'domain', text: r.domain || '—' });
+    const flagSpan = makeEl('span', { className: 'flag', text: r.quality_flag || '' });
+    const cmp = r.comparison || 'Unclear';
+    const cmpBadge = makeEl('span', { className: 'badge badge-cmp-' + cmp, text: cmp });
+    evidenceList.appendChild(makeEl('div', { className: 'evidence-row' }, [domainSpan, flagSpan, cmpBadge]));
+  }
+}
+
+// ---------- 06: Check Role ----------
+document.getElementById('roleBtn').addEventListener('click', async () => {
+  const out = document.getElementById('roleOut');
+  const id = document.getElementById('roleId').value.trim();
+  const addr = document.getElementById('roleAddr').value.trim();
+  if (!id || !addr) { showOut(out, 'Enter both an agreement ID and an address.', 'err'); return; }
+  try {
+    showOut(out, 'Reading contract state…');
+    const role = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_role', args: [id, addr],
+    });
+    showOut(out, String(role), 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ---------- 07: Total Agreements ----------
+document.getElementById('totalBtn').addEventListener('click', async () => {
+  const out = document.getElementById('totalOut');
+  try {
+    showOut(out, 'Reading contract state…');
+    const total = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'total_agreements', args: [],
+    });
+    showOut(out, String(total), 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ---------- 08: Withdraw & Balances ----------
+document.getElementById('checkPendingBtn').addEventListener('click', async () => {
+  const out = document.getElementById('pendingOut');
+  const addr = document.getElementById('withdrawCheckAddr').value.trim();
+  if (!addr) { showOut(out, 'Enter an address.', 'err'); return; }
+  try {
+    showOut(out, 'Reading contract state…');
+    const pendingWei = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_pending_withdrawal', args: [addr],
+    });
+    showOut(out, `${weiToGenString(pendingWei)} GEN (${pendingWei} wei)`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+document.getElementById('withdrawBtn').addEventListener('click', async () => {
+  const out = document.getElementById('withdrawOut');
+  if (!requireClient(out)) return;
+  try {
+    showOut(out, 'Submitting transaction…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'withdraw', args: [], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `${result !== null ? result : 'Withdrawn.'}\n\nTx: ${txHash}`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+document.getElementById('contractBalanceBtn').addEventListener('click', async () => {
+  const out = document.getElementById('contractBalanceOut');
+  try {
+    showOut(out, 'Reading contract state…');
+    const balanceWei = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_contract_balance', args: [],
+    });
+    showOut(out, `${weiToGenString(balanceWei)} GEN (${balanceWei} wei)`, 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+</script>
+
+</body>
+</html>
