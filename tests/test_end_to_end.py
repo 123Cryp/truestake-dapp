@@ -444,6 +444,62 @@ class ResolveSourceLockTests(unittest.TestCase):
             )
         self.assertEqual(result["status"], "resolved")
 
+    def test_resolve_rejects_duplicate_domain_source_urls(self):
+        """Two URLs from the same registrable domain must be rejected
+        outright, before any fetch and before the lock check even
+        looks at them - see the class docstring's "AT MOST ONE URL PER
+        DOMAIN" section for why this matters beyond just tidiness."""
+        aid = create_and_accept(self.c, comparison="above")
+        with self.assertRaises(gl.vm.UserError):
+            self.c.resolve_agreement(
+                aid,
+                [
+                    "https://espn.com/x",
+                    "https://espn.com/y",
+                    "https://bbc.com/sport/x",
+                ],
+            )
+        # Nothing should have locked or advanced from the rejected call.
+        record = json.loads(self.c.get_agreement(aid))
+        self.assertIsNone(record["locked_source_urls"])
+        self.assertEqual(record["resolution_attempts"], 0)
+
+    def test_reordered_locked_source_set_still_accepted(self):
+        """Once a (duplicate-free) set locks, resubmitting the exact
+        same URLs in a different order must still be accepted - the
+        lock check is intentionally order-independent. This is safe
+        specifically BECAUSE same-domain duplicates are now
+        impossible: there is no "which same-domain URL wins" question
+        left for the reordering to affect, so the outcome is
+        identical no matter which order the set is resubmitted in."""
+        aid = create_and_accept(self.c, comparison="above")
+        urls = ["https://espn.com/x", "https://bbc.com/sport/x"]
+
+        def fetch(url, mode="text"):
+            return FINAL_HIGH_SCORING_CONTENT if "espn.com" in url else FINAL_LOW_SCORING_CONTENT
+
+        def llm(prompt, response_format="text"):
+            if "goalless" in prompt:
+                return llm_response_for(FINAL_LOW_SCORING_CONTENT)
+            return llm_response_for(FINAL_HIGH_SCORING_CONTENT)
+
+        with patch.object(gl.nondet.web, "render", side_effect=fetch), patch.object(
+            gl.nondet, "exec_prompt", side_effect=llm
+        ):
+            first = json.loads(self.c.resolve_agreement(aid, urls))
+        self.assertIsNotNone(first["locked_source_urls"])
+        self.assertEqual(first["status"], "open")
+
+        with patch.object(gl.nondet.web, "render", side_effect=fetch), patch.object(
+            gl.nondet, "exec_prompt", side_effect=llm
+        ):
+            second = json.loads(
+                self.c.resolve_agreement(aid, list(reversed(urls)))
+            )
+        self.assertEqual(second["final_verdict"], first["final_verdict"])
+        by_domain = lambda records: {r["domain"]: r for r in records}
+        self.assertEqual(by_domain(second["records"]), by_domain(first["records"]))
+
 
 class ResolveGuardrailTests(unittest.TestCase):
     def setUp(self):
