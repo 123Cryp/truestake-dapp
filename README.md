@@ -1,6 +1,6 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![GenLayer](https://img.shields.io/badge/GenLayer-genlayer--js-3E9B4F)
-![Tests](https://img.shields.io/badge/tests-197%2F197%20passing-3E9B4F)
+![Tests](https://img.shields.io/badge/tests-199%2F199%20passing-3E9B4F)
 
 # TrueStake
 
@@ -28,7 +28,7 @@ point `index.html`'s `CONTRACT_ADDRESS` at the resulting address — see
 ```
 contract.py     the Intelligent Contract (GenLayer / GenVM, Python)
 index.html      the entire frontend — HTML/CSS/JS, no build step
-tests/          contract.py's offline test suite (197/197 passing)
+tests/          contract.py's offline test suite (199/199 passing)
 README.md
 LICENSE
 ```
@@ -102,6 +102,21 @@ open:
   see `tests/test_aggregation.py` for explicit dissenting-source cases
   (a lone dissenter among three, a two-way split among four, a three-way
   tie).
+- **At most one URL per domain, enforced before the lock check.**
+  `resolve_agreement` rejects outright any call whose `source_urls`
+  contain two or more URLs from the same registrable domain. Without
+  this, which of two same-domain pages counts as that domain's
+  evidence would be decided by first-seen-in-list order — and since
+  the lock comparison is deliberately order-independent (so a
+  legitimate retry isn't rejected purely over URL ordering), a
+  resolver could otherwise resubmit the identical locked *set* in a
+  different *order* and thereby swap which same-domain page supplies
+  the evidence, potentially changing the verdict and payout without
+  ever technically changing the locked set. Forbidding same-domain
+  duplicates removes the ordering question entirely. See
+  `test_resolve_rejects_duplicate_domain_source_urls` and
+  `test_reordered_locked_source_set_still_accepted` in
+  `tests/test_end_to_end.py`.
 
 ---
 
@@ -222,7 +237,7 @@ address before use (see [Deploying](#deploying)).
 
 ## Test suite
 
-197 offline `unittest` tests across five files, all passing:
+199 offline `unittest` tests across five files, all passing:
 
 - `test_party_binding_and_timing.py` — create/accept/cancel binding rules,
   deadline lead-time bounds, the 24h resolution window, `expire_agreement`,
@@ -238,8 +253,11 @@ address before use (see [Deploying](#deploying)).
   `gl.nondet.web.render` / `gl.nondet.exec_prompt` mocked, covering the
   happy path, every `quality_flag` (team mismatch, not-final score,
   score-unparseable, comparison mismatch), fetch failures, retry-after-
-  `Indeterminate`, and every resolution guardrail (early/late calls,
-  wrong source counts, missing committed domains/paths, double-resolve).
+  `Indeterminate`, every resolution guardrail (early/late calls, wrong
+  source counts, missing committed domains/paths, double-resolve), the
+  same-domain-URL rejection, and confirmation that reordering an
+  already-locked (duplicate-free) source set is still accepted and
+  yields an identical outcome.
 - `test_escrow_and_stakes.py` — **new**: funding correctness on create/
   accept (including rejecting zero, below-minimum, underpaid, and
   overpaid stakes), refunds on cancel and on both `expire_agreement`

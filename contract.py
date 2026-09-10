@@ -120,6 +120,26 @@ class TrueStake(gl.Contract):
              `tests/test_aggregation.py` for explicit dissenting-
              source scenarios (a lone dissenter among 3, a 2-2 split
              among 4, a 3-way tie, etc.).
+           - AT MOST ONE URL PER DOMAIN, ENFORCED BEFORE THE LOCK
+             CHECK: `resolve_agreement` rejects outright any call
+             whose source_urls contain two or more URLs from the same
+             registrable domain. Without this, "which URL counts as
+             that domain's evidence" would be decided by first-seen-
+             in-list-order - and since the lock comparison
+             (`_normalize_url_set`) is deliberately order-independent
+             (so a legitimate retry isn't rejected over URL ordering
+             alone), a resolver could resubmit the identical LOCKED
+             SET in a different order on a later attempt and thereby
+             swap which of two same-domain pages supplies that
+             domain's evidence, potentially changing the verdict and
+             payout without ever technically changing the locked set.
+             Forbidding same-domain duplicates in the submitted list
+             removes the ordering question entirely - there is never
+             a second URL to prefer one over. See
+             `tests/test_end_to_end.py`'s
+             `test_resolve_rejects_duplicate_domain_source_urls` and
+             `test_reordered_locked_source_set_still_accepted` for the
+             regression coverage this closes.
 
          A NOTE ON "TIMESTAMPED" EVIDENCE: unlike a live-quoted rate
          that changes minute to minute, a sports result is a single
@@ -1599,6 +1619,46 @@ class TrueStake(gl.Contract):
                 f"At most {self.MAX_SOURCES_SUBMITTED} candidate "
                 f"source URLs are accepted per resolution (got "
                 f"{len(source_urls)})."
+            )
+
+        # ------------------------------------------------------------
+        # Reject multiple submitted URLs from the same registrable
+        # domain OUTRIGHT, rather than silently keeping only the
+        # first-seen one as "primary" and marking the rest
+        # `is_duplicate_domain`. That first-seen-wins rule is a
+        # function of LIST ORDER, not of the URL set - and this
+        # method's voting-set lock (`_normalize_url_set`) deliberately
+        # compares source_urls as an order-independent set, so it
+        # would accept a later resolve_agreement attempt that
+        # resubmits the exact same set of URLs in a different order.
+        # Combined, those two facts would let a resolver flip which
+        # of two same-domain pages counts as that domain's evidence
+        # on a later attempt - without ever technically changing the
+        # locked set - which could change the eligible evidence, the
+        # verdict, and therefore the payout after locking. Forbidding
+        # same-domain duplicates in the submitted list at all removes
+        # that ordering from having any effect: there is never a
+        # "first-seen" URL to prefer, because there is never a second
+        # one to displace. `_annotate_sources`' own
+        # `is_duplicate_domain` marking is kept as defense-in-depth
+        # for the aggregation step, but a well-formed call can now
+        # never actually trigger it.
+        # ------------------------------------------------------------
+        domain_occurrences = {}
+        for raw_url in source_urls:
+            domain = self._extract_domain(raw_url)
+            if domain:
+                domain_occurrences.setdefault(domain, 0)
+                domain_occurrences[domain] += 1
+        repeated_domains = sorted(
+            domain for domain, count in domain_occurrences.items() if count > 1
+        )
+        if repeated_domains:
+            raise gl.vm.UserError(
+                f"source_urls must each come from a distinct "
+                f"registrable domain; got more than one URL from: "
+                f"{', '.join(repeated_domains)}. Submit at most one "
+                f"URL per domain."
             )
 
         # ------------------------------------------------------------
