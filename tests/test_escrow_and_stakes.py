@@ -379,5 +379,46 @@ class WithdrawTests(unittest.TestCase):
         self.assertEqual(len(gl.evm.transfers), 1)
 
 
+class ListAgreementsTests(unittest.TestCase):
+    """Coverage for the browse/enumeration view added after steward
+    feedback asked for a real explorer instead of manual ID lookup."""
+
+    def setUp(self):
+        self.c = make_contract()
+
+    def test_empty_before_any_agreement(self):
+        self.assertEqual(json.loads(self.c.list_agreements()), [])
+
+    def test_lists_every_created_agreement(self):
+        aid0 = create_funded(self.c, teams="Team A vs Team B")
+        aid1 = create_funded(self.c, teams="Team C vs Team D")
+        summaries = json.loads(self.c.list_agreements())
+        ids = {s["agreement_id"] for s in summaries}
+        self.assertEqual(ids, {aid0, aid1})
+
+    def test_newest_first(self):
+        aid0 = create_funded(self.c, teams="Team A vs Team B")
+        aid1 = create_funded(self.c, teams="Team C vs Team D")
+        summaries = json.loads(self.c.list_agreements())
+        self.assertEqual([s["agreement_id"] for s in summaries], [aid1, aid0])
+
+    def test_summary_fields_match_full_record(self):
+        aid = create_funded(self.c, value=2 * ONE_GEN, teams="Team A vs Team B")
+        summary = json.loads(self.c.list_agreements())[0]
+        full = json.loads(self.c.get_agreement(aid))
+        for key in (
+            "agreement_id", "teams", "status", "stake_amount",
+            "party_a", "party_b", "resolution_deadline",
+        ):
+            self.assertEqual(summary[key], full[key])
+
+    def test_reflects_status_changes(self):
+        aid = create_funded(self.c)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid)
+        summary = json.loads(self.c.list_agreements())[0]
+        self.assertEqual(summary["status"], "cancelled")
+
+
 if __name__ == "__main__":
     unittest.main()
