@@ -301,6 +301,13 @@ class TrueStake(gl.Contract):
     agreements: TreeMap[str, str]
     agreement_count: u256
 
+    # Every agreement_id ever created, in creation order. Exists ONLY
+    # so a frontend (or anyone else) can enumerate/browse existing
+    # agreements via `list_agreements()` below without having to
+    # already know an ID - `agreements` itself is a TreeMap and
+    # GenLayer's storage types don't expose "list all keys" directly.
+    all_agreement_ids: DynArray[str]
+
     # address (lowercase hex string) -> GEN (wei) this contract owes
     # that address and that address alone may withdraw. Populated only
     # by _credit() (payout/refund paths), drained only by withdraw().
@@ -1295,6 +1302,7 @@ class TrueStake(gl.Contract):
             sort_keys=True,
         )
         self.agreement_count = u256(int(self.agreement_count) + 1)
+        self.all_agreement_ids.append(agreement_id)
         return agreement_id
 
     def _parse_plain_number(self, raw) -> "float | None":
@@ -2016,6 +2024,35 @@ class TrueStake(gl.Contract):
     def total_agreements(self) -> int:
         """Total number of agreements created so far."""
         return int(self.agreement_count)
+
+    @gl.public.view
+    def list_agreements(self) -> str:
+        """
+        Return a JSON array of every agreement's browse-summary,
+        newest first: `{agreement_id, teams, status, stake_amount,
+        party_a, party_b, resolution_deadline}` for each. Exists so a
+        frontend (or anyone else) can build a real browse/search page
+        instead of requiring the user to already know - and manually
+        type in - an agreement_id before they can look anything up.
+        `get_agreement(agreement_id)` remains the source of truth for
+        an individual agreement's full record; this method only
+        returns enough per-agreement detail for a list view.
+        """
+        summaries = []
+        for agreement_id in reversed(list(self.all_agreement_ids)):
+            record = json.loads(self.agreements[agreement_id])
+            summaries.append(
+                {
+                    "agreement_id": record["agreement_id"],
+                    "teams": record["teams"],
+                    "status": record["status"],
+                    "stake_amount": record["stake_amount"],
+                    "party_a": record["party_a"],
+                    "party_b": record["party_b"],
+                    "resolution_deadline": record["resolution_deadline"],
+                }
+            )
+        return json.dumps(summaries)
 
     @gl.public.view
     def get_role(self, agreement_id: str, address: str) -> str:

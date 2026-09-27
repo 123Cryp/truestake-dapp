@@ -238,8 +238,60 @@
     max-width:1180px; margin:0 auto; padding:24px 20px 60px;
     font-size:12px; color:var(--ink-faint); line-height:1.6;
   }
+
+  /* ---------- Routing / navigation ---------- */
+  nav.tabs{
+    max-width:1180px; margin:0 auto; padding:14px 20px 0;
+    display:flex; gap:8px; flex-wrap:wrap;
+  }
+  nav.tabs a{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:12.5px; text-transform:uppercase; letter-spacing:.04em;
+    text-decoration:none; color:var(--ink-dim);
+    border:1px solid var(--line); border-radius:999px;
+    padding:8px 16px;
+  }
+  nav.tabs a:hover{ color:var(--ink); border-color:var(--iris); }
+  nav.tabs a.active{ background:var(--black); border-color:var(--black); color:#fff; }
+
+  .route{ display:none; }
+  .route.active{ display:block; }
+
+  .col-full{
+    max-width:1180px; margin:0 auto; padding:24px 20px 80px;
+    display:flex; flex-direction:column; gap:18px;
+  }
+  .detail-grid{
+    max-width:1180px; margin:0 auto; padding:24px 20px 80px;
+    display:grid; grid-template-columns:1.1fr 1fr; gap:18px; align-items:start;
+  }
+  @media (max-width:920px){ .detail-grid{ grid-template-columns:1fr; } }
+
+  /* ---------- Explorer ---------- */
+  .explore-toolbar{ display:flex; gap:10px; margin-bottom:16px; }
+  .explore-toolbar input{ flex:1; }
+  .explore-toolbar button{ margin-top:0; white-space:nowrap; }
+  .explore-card{
+    display:flex; align-items:center; justify-content:space-between; gap:14px;
+    padding:14px 16px; border:1px solid var(--line); border-radius:8px;
+    margin-bottom:10px; text-decoration:none; color:var(--ink);
+    background:var(--paper); cursor:pointer;
+  }
+  .explore-card:hover{ border-color:var(--iris); background:var(--paper-sunken); }
+  .explore-card .ec-main{ display:flex; flex-direction:column; gap:4px; min-width:0; }
+  .explore-card .ec-teams{ font-weight:600; font-size:14px; }
+  .explore-card .ec-meta{ font-family:'IBM Plex Mono',monospace; font-size:11.5px; color:var(--ink-dim); }
+  .explore-card .ec-id{
+    font-family:'IBM Plex Mono',monospace; font-size:11px; color:var(--ink-faint);
+    flex-shrink:0;
+  }
+  .explore-empty{ font-size:13px; color:var(--ink-faint); font-style:italic; padding:20px 0; }
+  .id-chip{
+    display:inline-block; font-family:'IBM Plex Mono',monospace; font-size:13px;
+    color:var(--iris-deep); background:var(--paper-sunken); border:1px solid var(--line);
+    border-radius:6px; padding:3px 10px;
+  }
 </style>
-</head>
 <body>
 
 <header>
@@ -265,168 +317,200 @@
   </div>
 </header>
 
+<nav class="tabs">
+  <a href="#/" class="tab-link" data-route="explore">Explore</a>
+  <a href="#/create" class="tab-link" data-route="create">Create Agreement</a>
+  <a href="#/withdraw" class="tab-link" data-route="withdraw">Withdraw &amp; Balances</a>
+</nav>
+
 <main>
-  <div class="col">
 
-    <section class="panel">
-      <h2>Create Agreement</h2>
-      <p class="desc">Caller becomes party_a automatically. party_b must accept — sending an identical stake — before the agreement binds.</p>
+  <!-- ============ ROUTE: #/  (Explore / Browse) ============ -->
+  <section class="route" id="route-explore">
+    <div class="col-full">
 
-      <label for="stakeAmount">Your stake (GEN)</label>
-      <input type="text" id="stakeAmount" placeholder="1">
-      <p class="hint">Sent as native GEN value alongside this call. Whatever you enter here becomes <code>stake_amount</code> — party_b must send exactly this much to accept. Minimum 0.001 GEN.</p>
-
-      <label for="partyB">Party B address</label>
-      <input type="text" id="partyB" placeholder="0x…">
-
-      <label for="teams">Fixture (Team A vs Team B)</label>
-      <input type="text" id="teams" placeholder="Manchester United vs Liverpool">
-
-      <label for="matchDate">Match date</label>
-      <input type="text" id="matchDate" placeholder="2026-09-05">
-
-      <div class="row2">
-        <div>
-          <label for="threshold">Threshold (total goals)</label>
-          <input type="text" id="threshold" placeholder="2.5">
+      <section class="panel">
+        <h2>Explore Agreements</h2>
+        <p class="desc">
+          Every agreement ever created on this contract instance, newest first.
+          Click one to open it — no agreement ID to look up or type in first.
+          <span id="exploreTotalNote"></span>
+        </p>
+        <div class="explore-toolbar">
+          <input type="text" id="exploreFilter" placeholder="Filter by ID, teams, or party address…">
+          <button class="secondary" id="exploreRefreshBtn" type="button">Refresh</button>
         </div>
-        <div>
-          <label for="comparison">Comparison</label>
-          <select id="comparison">
-            <option value="above">above (over)</option>
-            <option value="below">below (under)</option>
-          </select>
+        <div id="exploreList"></div>
+        <div class="out" id="exploreOut"></div>
+      </section>
+
+    </div>
+  </section>
+
+  <!-- ============ ROUTE: #/create ============ -->
+  <section class="route" id="route-create">
+    <div class="col-full">
+
+      <section class="panel">
+        <h2>Create Agreement</h2>
+        <p class="desc">Caller becomes party_a automatically. party_b must accept — sending an identical stake — before the agreement binds.</p>
+
+        <label for="stakeAmount">Your stake (GEN)</label>
+        <input type="text" id="stakeAmount" placeholder="1">
+        <p class="hint">Sent as native GEN value alongside this call. Whatever you enter here becomes <code>stake_amount</code> — party_b must send exactly this much to accept. Minimum 0.001 GEN.</p>
+
+        <label for="partyB">Party B address</label>
+        <input type="text" id="partyB" placeholder="0x…">
+
+        <label for="teams">Fixture (Team A vs Team B)</label>
+        <input type="text" id="teams" placeholder="Manchester United vs Liverpool">
+
+        <label for="matchDate">Match date</label>
+        <input type="text" id="matchDate" placeholder="2026-09-05">
+
+        <div class="row2">
+          <div>
+            <label for="threshold">Threshold (total goals)</label>
+            <input type="text" id="threshold" placeholder="2.5">
+          </div>
+          <div>
+            <label for="comparison">Comparison</label>
+            <select id="comparison">
+              <option value="above">above (over)</option>
+              <option value="below">below (under)</option>
+            </select>
+          </div>
         </div>
+
+        <label for="description">Description</label>
+        <input type="text" id="description" placeholder="Total combined goals over/under 2.5" maxlength="200">
+
+        <label for="deadline">Resolution deadline (expected full-time, local time)</label>
+        <input type="datetime-local" id="deadline">
+        <p class="hint">Must be 2 hours – 7 days from now. Resolution window closes 24h after this.</p>
+
+        <label for="requiredDomains">Required source domains (comma-separated, 2–6, from the allowlist)</label>
+        <textarea id="requiredDomains">espn.com, bbc.com/sport</textarea>
+        <p class="hint">Allowlist: espn.com, bbc.com, skysports.com, reuters.com, ap.org, goal.com, fifa.com, nba.com, nfl.com, nhl.com, mlb.com, thescore.com, flashscore.com, sportsmole.co.uk. A domain entry may optionally pin a path, e.g. "bbc.com/sport".</p>
+
+        <button class="primary" id="createBtn" type="button">Create agreement</button>
+        <p class="hint">On success, you're taken straight to the new agreement's page — its ID never needs to be typed anywhere.</p>
+        <div class="out" id="createOut"></div>
+      </section>
+
+    </div>
+  </section>
+
+  <!-- ============ ROUTE: #/agreement/<id> ============ -->
+  <section class="route" id="route-agreement">
+    <div class="detail-grid">
+
+      <div class="col">
+        <section class="panel">
+          <h2>Agreement <span class="id-chip" id="agreementIdLabel">—</span></h2>
+          <p class="desc">Full auditable record: parties, fixture, terms, timing, status, and (once attempted) the per-source evidence trail.</p>
+
+          <div class="verdict-hero" id="verdictHero">
+            <div class="vlabel">Final verdict</div>
+            <div class="vvalue" id="verdictValue">—</div>
+            <div class="vwinner" id="verdictWinner">—</div>
+          </div>
+
+          <div id="fieldsList"></div>
+
+          <h2 style="margin-top:20px;">Evidence</h2>
+          <div id="evidenceList"></div>
+
+          <div class="out" id="readOut"></div>
+        </section>
+
+        <section class="panel">
+          <h2>My Role</h2>
+          <p class="desc">Automatically checked for your connected wallet against this agreement — connect or start a test session above.</p>
+          <div class="out" id="myRoleOut" style="display:block;">Not connected.</div>
+        </section>
       </div>
 
-      <label for="description">Description</label>
-      <input type="text" id="description" placeholder="Total combined goals over/under 2.5" maxlength="200">
+      <div class="col">
+        <section class="panel">
+          <h2>Accept / Cancel</h2>
+          <p class="desc">Only party_b can accept, and only by sending EXACTLY party_a's stake. Only party_a can cancel (and only before acceptance) — cancelling refunds party_a's stake for withdrawal.</p>
 
-      <label for="deadline">Resolution deadline (expected full-time, local time)</label>
-      <input type="datetime-local" id="deadline">
-      <p class="hint">Must be 2 hours – 7 days from now. Resolution window closes 24h after this.</p>
+          <label for="acceptStake">Stake to send (GEN) — must match party_a's exactly</label>
+          <input type="text" id="acceptStake" placeholder="1">
+          <p class="hint">Auto-filled from this agreement's on-chain <code>stake_amount</code> when the page loads.</p>
 
-      <label for="requiredDomains">Required source domains (comma-separated, 2–6, from the allowlist)</label>
-      <textarea id="requiredDomains">espn.com, bbc.com/sport</textarea>
-      <p class="hint">Allowlist: espn.com, bbc.com, skysports.com, reuters.com, ap.org, goal.com, fifa.com, nba.com, nfl.com, nhl.com, mlb.com, thescore.com, flashscore.com, sportsmole.co.uk. A domain entry may optionally pin a path, e.g. "bbc.com/sport".</p>
+          <button class="primary" id="acceptBtn" type="button">Accept (party_b)</button>
+          <button class="secondary" id="cancelBtn" type="button">Cancel (party_a)</button>
+          <div class="out" id="acceptOut"></div>
+        </section>
 
-      <button class="primary" id="createBtn" type="button">Create agreement</button>
-      <div class="out" id="createOut"></div>
-    </section>
+        <section class="panel">
+          <h2>Resolve</h2>
+          <p class="desc">Only callable after the deadline (full-time) and before the 24h resolution window closes. Every committed domain (and pinned path) must be represented.</p>
 
-    <section class="panel">
-      <h2>Accept / Cancel Agreement</h2>
-      <p class="desc">Only party_b can accept, and only by sending EXACTLY party_a's stake. Only party_a can cancel (and only before acceptance) — cancelling refunds party_a's stake for withdrawal.</p>
+          <label for="sourceUrls">Source URLs (one per line, 2–6)</label>
+          <textarea id="sourceUrls" placeholder="https://espn.com/soccer/match/...&#10;https://bbc.com/sport/football/..."></textarea>
+          <p class="hint">On the FIRST successful attempt, this exact set of URLs is locked for this agreement — every later retry must resubmit the same set.</p>
 
-      <label for="acceptId">Agreement ID</label>
-      <input type="text" id="acceptId" placeholder="0">
+          <button class="primary" id="resolveBtn" type="button">Resolve</button>
+          <div class="out" id="resolveOut"></div>
+        </section>
 
-      <label for="acceptStake">Stake to send (GEN) — must match party_a's exactly</label>
-      <input type="text" id="acceptStake" placeholder="1">
-      <button class="secondary" id="loadStakeBtn" type="button">Load exact amount from agreement</button>
-      <p class="hint">Looks up this agreement's <code>stake_amount</code> on-chain and fills the field above, so you never have to guess or retype it by hand.</p>
+        <section class="panel">
+          <h2>Expire</h2>
+          <p class="desc">Permissionless. Moves a lapsed agreement (never accepted, or never resolved in time) to "expired" and credits the relevant stake(s) back to their own depositor.</p>
 
-      <button class="primary" id="acceptBtn" type="button">Accept (party_b)</button>
-      <button class="secondary" id="cancelBtn" type="button">Cancel (party_a)</button>
-      <div class="out" id="acceptOut"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Resolve Agreement</h2>
-      <p class="desc">Only callable after the deadline (full-time) and before the 24h resolution window closes. Every committed domain (and pinned path) must be represented.</p>
-
-      <label for="resolveId">Agreement ID</label>
-      <input type="text" id="resolveId" placeholder="0">
-
-      <label for="sourceUrls">Source URLs (one per line, 2–6)</label>
-      <textarea id="sourceUrls" placeholder="https://espn.com/soccer/match/...&#10;https://bbc.com/sport/football/..."></textarea>
-      <p class="hint">On the FIRST successful attempt, this exact set of URLs is locked for this agreement — every later retry must resubmit the same set.</p>
-
-      <button class="primary" id="resolveBtn" type="button">Resolve</button>
-      <div class="out" id="resolveOut"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Expire Agreement</h2>
-      <p class="desc">Permissionless. Moves a lapsed agreement (never accepted, or never resolved in time) to "expired" and credits the relevant stake(s) back to their own depositor — party_a only if party_b never accepted, both parties equally if the resolution window closed unresolved.</p>
-
-      <label for="expireId">Agreement ID</label>
-      <input type="text" id="expireId" placeholder="0">
-
-      <button class="primary" id="expireBtn" type="button">Expire</button>
-      <div class="out" id="expireOut"></div>
-    </section>
-
-    <section class="panel">
-      <h2>Withdraw &amp; Balances</h2>
-      <p class="desc">
-        Payouts and refunds are never pushed automatically — they only credit an internal balance.
-        <code>withdraw()</code> is the one method that actually moves GEN, and it always sends the
-        <strong>caller's own</strong> full credited balance (from every agreement combined) to the caller's own wallet.
-      </p>
-
-      <label for="withdrawCheckAddr">Check pending balance for address</label>
-      <input type="text" id="withdrawCheckAddr" placeholder="0…">
-      <button class="secondary" id="checkPendingBtn" type="button">Check pending withdrawal</button>
-      <div class="out" id="pendingOut"></div>
-
-      <button class="primary" id="withdrawBtn" type="button" style="margin-top:14px;">Withdraw my balance</button>
-      <p class="hint">Sends whatever is currently credited to the connected wallet — no agreement ID needed.</p>
-      <div class="out" id="withdrawOut"></div>
-
-      <button class="secondary" id="contractBalanceBtn" type="button" style="margin-top:14px;">Fetch total contract balance</button>
-      <p class="hint">Total GEN this contract currently custodies — the sum of every escrowed stake not yet resolved/refunded, plus every credited balance not yet withdrawn. Useful as an independent solvency check.</p>
-      <div class="out" id="contractBalanceOut"></div>
-    </section>
-
-  </div>
-
-  <div class="col">
-
-    <section class="panel">
-      <h2>Read Agreement</h2>
-      <p class="desc">Full auditable record: parties, fixture, terms, timing, status, and (once attempted) the per-source evidence trail.</p>
-
-      <label for="readId">Agreement ID</label>
-      <input type="text" id="readId" placeholder="0">
-      <button class="primary" id="readBtn" type="button">Read</button>
-
-      <div class="verdict-hero" id="verdictHero">
-        <div class="vlabel">Final verdict</div>
-        <div class="vvalue" id="verdictValue">—</div>
-        <div class="vwinner" id="verdictWinner">—</div>
+          <button class="primary" id="expireBtn" type="button">Expire this agreement</button>
+          <div class="out" id="expireOut"></div>
+        </section>
       </div>
 
-      <div id="fieldsList"></div>
+    </div>
+  </section>
 
-      <h2 style="margin-top:20px;">Evidence</h2>
-      <div id="evidenceList"></div>
+  <!-- ============ ROUTE: #/withdraw ============ -->
+  <section class="route" id="route-withdraw">
+    <div class="col-full">
 
-      <div class="out" id="readOut"></div>
-    </section>
+      <section class="panel">
+        <h2>Withdraw &amp; Balances</h2>
+        <p class="desc">
+          Payouts and refunds are never pushed automatically — they only credit an internal balance.
+          <code>withdraw()</code> is the one method that actually moves GEN, and it always sends the
+          <strong>caller's own</strong> full credited balance (from every agreement combined) to the caller's own wallet.
+        </p>
 
-    <section class="panel">
-      <h2>Check Role</h2>
-      <p class="desc">Look up whether an address is party_a, party_b, or unrelated to a given agreement.</p>
+        <label for="withdrawCheckAddr">Check pending balance for address</label>
+        <input type="text" id="withdrawCheckAddr" placeholder="0…">
+        <button class="secondary" id="checkPendingBtn" type="button">Check pending withdrawal</button>
+        <div class="out" id="pendingOut"></div>
 
-      <label for="roleId">Agreement ID</label>
-      <input type="text" id="roleId" placeholder="0">
-      <label for="roleAddr">Address</label>
-      <input type="text" id="roleAddr" placeholder="0x…">
+        <button class="primary" id="withdrawBtn" type="button" style="margin-top:14px;">Withdraw my balance</button>
+        <p class="hint">Sends whatever is currently credited to the connected wallet.</p>
+        <div class="out" id="withdrawOut"></div>
 
-      <button class="primary" id="roleBtn" type="button">Check role</button>
-      <div class="out" id="roleOut"></div>
-    </section>
+        <button class="secondary" id="contractBalanceBtn" type="button" style="margin-top:14px;">Fetch total contract balance</button>
+        <p class="hint">Total GEN this contract currently custodies — the sum of every escrowed stake not yet resolved/refunded, plus every credited balance not yet withdrawn. Useful as an independent solvency check.</p>
+        <div class="out" id="contractBalanceOut"></div>
+      </section>
 
-    <section class="panel">
-      <h2>Total Agreements</h2>
-      <p class="desc">Total number of agreements ever created on this contract instance.</p>
+      <section class="panel">
+        <h2>Check Role</h2>
+        <p class="desc">Look up whether an arbitrary address is party_a, party_b, or unrelated to a given agreement (viewing an agreement's own page also does this automatically for your connected wallet).</p>
 
-      <button class="primary" id="totalBtn" type="button">Fetch total_agreements</button>
-      <div class="out" id="totalOut"></div>
-    </section>
+        <label for="roleId">Agreement ID</label>
+        <input type="text" id="roleId" placeholder="0">
+        <label for="roleAddr">Address</label>
+        <input type="text" id="roleAddr" placeholder="0x…">
 
-  </div>
+        <button class="primary" id="roleBtn" type="button">Check role</button>
+        <div class="out" id="roleOut"></div>
+      </section>
+
+    </div>
+  </section>
+
 </main>
 
 <footer>
@@ -436,7 +520,6 @@
   interpreted as HTML/script by this page.
   Source: <a href="https://github.com/123Cryp" target="_blank" rel="noopener">github.com/123Cryp</a>.
 </footer>
-
 <script type="module">
 import { createClient, createAccount } from "https://esm.sh/genlayer-js@latest";
 import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
@@ -445,7 +528,7 @@ import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
 // EDIT THIS after you deploy TrueStake's contract.py — paste the
 // deployed address here (from the Studio/explorer "Deployed at" field).
 // ------------------------------------------------------------------
-const CONTRACT_ADDRESS = "0x5a847c5A315bE64687Bd399ab1B62Dd198cc174D";
+const CONTRACT_ADDRESS = "0x580B34a2499B1c6D9f9507c52b3dc2Ad5657Ac1d";
 
 document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
 
@@ -475,6 +558,7 @@ async function connectWallet(){
     setStatus(true, `Connected (MetaMask) · ${account.slice(0,6)}…${account.slice(-4)}`);
     connectBtn.textContent = 'reconnect';
     testSessionNote.style.display = 'none';
+    refreshMyRole();
   } catch (err) {
     setStatus(false, 'Connection rejected');
   }
@@ -488,6 +572,7 @@ function startTestSession(){
   setStatus(true, `Connected (test session) · ${account.slice(0,6)}…${account.slice(-4)}`);
   testSessionBtn.textContent = 'new test session';
   testSessionNote.style.display = 'block';
+  refreshMyRole();
 }
 testSessionBtn.addEventListener('click', startTestSession);
 
@@ -616,7 +701,114 @@ function weiToGenString(weiValue){
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
-// ---------- 01: Create Agreement ----------
+// ==================================================================
+// ROUTER — real client-side, hash-based routing between four pages
+// (#/ explore, #/create, #/agreement/<id>, #/withdraw). Navigating
+// between them never reloads the page; the URL itself is shareable
+// and bookmarkable (e.g. linking straight to #/agreement/7), and the
+// browser's own back/forward buttons work via the native
+// `hashchange` event — no framework needed for that.
+// ==================================================================
+let currentAgreementId = null;
+
+function parseRoute(){
+  const hash = location.hash.replace(/^#\/?/, ''); // strip leading "#" and "/"
+  const parts = hash.split('/').filter(Boolean);
+  if (parts.length === 0) return { name: 'explore' };
+  if (parts[0] === 'create') return { name: 'create' };
+  if (parts[0] === 'withdraw') return { name: 'withdraw' };
+  if (parts[0] === 'agreement' && parts[1]) return { name: 'agreement', id: parts[1] };
+  return { name: 'explore' };
+}
+
+function router(){
+  const route = parseRoute();
+
+  document.querySelectorAll('.route').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.tab-link').forEach(el => el.classList.remove('active'));
+
+  const activeRouteEl = document.getElementById('route-' + route.name);
+  if (activeRouteEl) activeRouteEl.classList.add('active');
+  const activeNavEl = document.querySelector(`.tab-link[data-route="${route.name === 'agreement' ? 'explore' : route.name}"]`);
+  if (activeNavEl) activeNavEl.classList.add('active');
+
+  if (route.name === 'explore') {
+    loadExplore();
+  } else if (route.name === 'agreement') {
+    loadAgreementRoute(route.id);
+  }
+  // 'create' and 'withdraw' routes have no data to load on entry.
+}
+window.addEventListener('hashchange', router);
+window.addEventListener('DOMContentLoaded', router);
+
+// ------------------------------------------------------------------
+// EXPLORE — browse every agreement without needing to already know
+// an ID. Backed by the contract's list_agreements() view.
+// ------------------------------------------------------------------
+let exploreCache = [];
+
+function renderExploreList(items){
+  const list = document.getElementById('exploreList');
+  clearChildren(list);
+  if (!items.length) {
+    list.appendChild(makeEl('p', { className: 'explore-empty', text: 'No agreements match.' }));
+    return;
+  }
+  for (const item of items) {
+    const teamsEl = makeEl('span', { className: 'ec-teams', text: item.teams || '—' });
+    const statusBadge = makeEl('span', {
+      className: 'badge badge-status-' + (item.status || ''),
+      text: item.status || '—',
+    });
+    const stakeEl = makeEl('span', {
+      className: 'ec-meta',
+      text: item.stake_amount ? `${weiToGenString(item.stake_amount)} GEN stake` : '',
+    });
+    const metaRow = makeEl('span', { className: 'ec-meta' }, [statusBadge]);
+    const main = makeEl('div', { className: 'ec-main' }, [teamsEl, metaRow, stakeEl]);
+    const idChip = makeEl('span', { className: 'id-chip', text: '#' + item.agreement_id });
+
+    const card = document.createElement('a');
+    card.className = 'explore-card';
+    card.href = '#/agreement/' + encodeURIComponent(item.agreement_id);
+    card.appendChild(main);
+    card.appendChild(idChip);
+    list.appendChild(card);
+  }
+}
+
+function applyExploreFilter(){
+  const q = document.getElementById('exploreFilter').value.trim().toLowerCase();
+  if (!q) { renderExploreList(exploreCache); return; }
+  const filtered = exploreCache.filter(item =>
+    String(item.agreement_id).toLowerCase().includes(q) ||
+    (item.teams || '').toLowerCase().includes(q) ||
+    (item.party_a || '').toLowerCase().includes(q) ||
+    (item.party_b || '').toLowerCase().includes(q)
+  );
+  renderExploreList(filtered);
+}
+document.getElementById('exploreFilter').addEventListener('input', applyExploreFilter);
+
+async function loadExplore(){
+  const out = document.getElementById('exploreOut');
+  try {
+    showOut(out, 'Reading contract state…');
+    const raw = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'list_agreements', args: [],
+    });
+    exploreCache = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    document.getElementById('exploreTotalNote').textContent = `(${exploreCache.length} total)`;
+    applyExploreFilter();
+    out.style.display = 'none';
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+}
+document.getElementById('exploreRefreshBtn').addEventListener('click', loadExplore);
+
+// ---------- Create Agreement ----------
 document.getElementById('createBtn').addEventListener('click', async () => {
   const out = document.getElementById('createOut');
   if (!requireClient(out)) return;
@@ -656,150 +848,31 @@ document.getElementById('createBtn').addEventListener('click', async () => {
     });
     const agreementId = extractReturnValue(receipt);
     if (agreementId !== null && agreementId !== undefined) {
-      showOut(out, `Agreement created. ID: ${agreementId} · stake: ${stakeGen} GEN\n\nTx: ${txHash}`, 'ok');
-      document.getElementById('acceptId').value = String(agreementId);
-      document.getElementById('acceptStake').value = stakeGen;
-      document.getElementById('resolveId').value = String(agreementId);
-      document.getElementById('expireId').value = String(agreementId);
-      document.getElementById('readId').value = String(agreementId);
+      showOut(out, `Agreement created. ID: ${agreementId} · stake: ${stakeGen} GEN\n\nTx: ${txHash}\n\nOpening it now…`, 'ok');
+      location.hash = '#/agreement/' + encodeURIComponent(String(agreementId));
     } else {
-      showOut(out, `Finalized, but the agreement ID could not be auto-detected.\nCheck the explorer.\n\nTx: ${txHash}`, 'ok');
+      showOut(out, `Finalized, but the agreement ID could not be auto-detected.\nCheck Explore.\n\nTx: ${txHash}`, 'ok');
     }
   } catch (err) {
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
   }
 });
 
-// ---------- 02: Accept / Cancel Agreement ----------
-document.getElementById('loadStakeBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  const id = document.getElementById('acceptId').value.trim();
-  if (!id) { showOut(out, 'Enter an agreement ID first.', 'err'); return; }
-  try {
-    showOut(out, 'Reading contract state…');
-    const raw = await readClient.readContract({
-      address: CONTRACT_ADDRESS, functionName: 'get_agreement', args: [id],
-    });
-    const agreement = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    if (!agreement.stake_amount) { showOut(out, 'No stake_amount found on this agreement.', 'err'); return; }
-    const genValue = weiToGenString(agreement.stake_amount);
-    document.getElementById('acceptStake').value = genValue;
-    showOut(out, `Loaded: ${genValue} GEN (${agreement.stake_amount} wei).`, 'ok');
-  } catch (err) {
-    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+// ------------------------------------------------------------------
+// AGREEMENT DETAIL (#/agreement/<id>) — every action here (accept,
+// cancel, resolve, expire) acts on `currentAgreementId`, set once
+// when the page loads. Nothing on this page asks the user to type an
+// agreement ID by hand.
+// ------------------------------------------------------------------
+async function loadAgreementRoute(id){
+  currentAgreementId = id;
+  document.getElementById('agreementIdLabel').textContent = '#' + id;
+  for (const outId of ['acceptOut', 'resolveOut', 'expireOut']) {
+    document.getElementById(outId).style.display = 'none';
   }
-});
-
-document.getElementById('acceptBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('acceptId').value.trim();
-  const stakeGen = document.getElementById('acceptStake').value.trim();
-  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
-  const stakeWei = genToWei(stakeGen);
-  if (stakeWei === null || stakeWei <= 0n) { showOut(out, 'Enter a valid stake amount in GEN (use "Load exact amount" if unsure).', 'err'); return; }
-  try {
-    showOut(out, `Submitting transaction with ${stakeGen} GEN…`);
-    const txHash = await client.writeContract({
-      address: CONTRACT_ADDRESS, functionName: 'accept_agreement', args: [id], value: stakeWei,
-    });
-    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
-    const receipt = await client.waitForTransactionReceipt({
-      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
-    });
-    const result = extractReturnValue(receipt);
-    showOut(out, `Accepted.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
-  } catch (err) {
-    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
-  }
-});
-
-document.getElementById('cancelBtn').addEventListener('click', async () => {
-  const out = document.getElementById('acceptOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('acceptId').value.trim();
-  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
-  try {
-    showOut(out, 'Submitting transaction…');
-    const txHash = await client.writeContract({
-      address: CONTRACT_ADDRESS, functionName: 'cancel_agreement', args: [id], value: 0,
-    });
-    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
-    const receipt = await client.waitForTransactionReceipt({
-      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
-    });
-    const result = extractReturnValue(receipt);
-    showOut(out, `Cancelled.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
-  } catch (err) {
-    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
-  }
-});
-
-// ---------- 03: Resolve Agreement ----------
-document.getElementById('resolveBtn').addEventListener('click', async () => {
-  const out = document.getElementById('resolveOut');
-  if (!requireClient(out)) return;
-
-  const id = document.getElementById('resolveId').value.trim();
-  const urls = parseLineList(document.getElementById('sourceUrls').value);
-
-  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
-  if (urls.length < 2 || urls.length > 6) {
-    showOut(out, 'Provide 2–6 source URLs (one per line).', 'err');
-    return;
-  }
-
-  try {
-    showOut(out, 'Submitting transaction — this triggers live fetch + LLM extraction under validator consensus, it can take a while…');
-    const txHash = await client.writeContract({
-      address: CONTRACT_ADDRESS, functionName: 'resolve_agreement', args: [id, urls], value: 0,
-    });
-    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization — this runs a real fetch + LLM extraction per source, so it can take a few minutes…`);
-    const receipt = await client.waitForTransactionReceipt({
-      hash: txHash, status: 'FINALIZED', interval: 5000, retries: 90,
-    });
-    const result = extractReturnValue(receipt);
-    showOut(out, `Resolved.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : JSON.stringify(receipt, null, 2)}`, 'ok');
-    document.getElementById('readId').value = id;
-    fetchAgreement(id);
-  } catch (err) {
-    const message = err?.message || String(err);
-    if (/timed out/i.test(message)) {
-      showOut(out, `${message}\n\nThis is just the browser giving up on waiting — the transaction may still finalize on-chain. Wait, then use "Read Agreement" with the same ID.`, 'err');
-    } else {
-      showOut(out, 'Error: ' + message, 'err');
-    }
-  }
-});
-
-// ---------- 04: Expire Agreement ----------
-document.getElementById('expireBtn').addEventListener('click', async () => {
-  const out = document.getElementById('expireOut');
-  if (!requireClient(out)) return;
-  const id = document.getElementById('expireId').value.trim();
-  if (!id) { showOut(out, 'Enter an agreement ID.', 'err'); return; }
-  try {
-    showOut(out, 'Submitting transaction…');
-    const txHash = await client.writeContract({
-      address: CONTRACT_ADDRESS, functionName: 'expire_agreement', args: [id], value: 0,
-    });
-    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
-    const receipt = await client.waitForTransactionReceipt({
-      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
-    });
-    const result = extractReturnValue(receipt);
-    showOut(out, `Expired.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
-  } catch (err) {
-    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
-  }
-});
-
-// ---------- 05: Read Agreement ----------
-document.getElementById('readBtn').addEventListener('click', () => {
-  const id = document.getElementById('readId').value.trim();
-  if (!id) return;
-  fetchAgreement(id);
-});
+  await fetchAgreement(id);
+  refreshMyRole();
+}
 
 async function fetchAgreement(id){
   const out = document.getElementById('readOut');
@@ -809,8 +882,11 @@ async function fetchAgreement(id){
       address: CONTRACT_ADDRESS, functionName: 'get_agreement', args: [id],
     });
     const agreement = typeof raw === 'string' ? JSON.parse(raw) : raw;
-    showOut(out, JSON.stringify(agreement, null, 2), 'ok');
+    out.style.display = 'none';
     renderAgreement(agreement);
+    if (agreement.stake_amount) {
+      document.getElementById('acceptStake').value = weiToGenString(agreement.stake_amount);
+    }
   } catch (err) {
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
     const evidenceList = document.getElementById('evidenceList');
@@ -900,38 +976,124 @@ function renderAgreement(agreement){
   }
 }
 
-// ---------- 06: Check Role ----------
-document.getElementById('roleBtn').addEventListener('click', async () => {
-  const out = document.getElementById('roleOut');
-  const id = document.getElementById('roleId').value.trim();
-  const addr = document.getElementById('roleAddr').value.trim();
-  if (!id || !addr) { showOut(out, 'Enter both an agreement ID and an address.', 'err'); return; }
+async function refreshMyRole(){
+  const out = document.getElementById('myRoleOut');
+  if (!out) return;
+  if (!currentAgreementId) return;
+  if (!account) { showOut(out, 'Not connected.'); return; }
   try {
-    showOut(out, 'Reading contract state…');
     const role = await readClient.readContract({
-      address: CONTRACT_ADDRESS, functionName: 'get_role', args: [id, addr],
+      address: CONTRACT_ADDRESS, functionName: 'get_role', args: [currentAgreementId, account],
     });
-    showOut(out, String(role), 'ok');
+    showOut(out, `${account.slice(0,6)}…${account.slice(-4)} is: ${role}`, role === 'none' ? '' : 'ok');
   } catch (err) {
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
   }
-});
+}
 
-// ---------- 07: Total Agreements ----------
-document.getElementById('totalBtn').addEventListener('click', async () => {
-  const out = document.getElementById('totalOut');
+document.getElementById('acceptBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  if (!currentAgreementId) { showOut(out, 'Open an agreement first.', 'err'); return; }
+  const stakeGen = document.getElementById('acceptStake').value.trim();
+  const stakeWei = genToWei(stakeGen);
+  if (stakeWei === null || stakeWei <= 0n) { showOut(out, 'Enter a valid stake amount in GEN.', 'err'); return; }
   try {
-    showOut(out, 'Reading contract state…');
-    const total = await readClient.readContract({
-      address: CONTRACT_ADDRESS, functionName: 'total_agreements', args: [],
+    showOut(out, `Submitting transaction with ${stakeGen} GEN…`);
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'accept_agreement', args: [currentAgreementId], value: stakeWei,
     });
-    showOut(out, String(total), 'ok');
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Accepted.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+    fetchAgreement(currentAgreementId);
+    refreshMyRole();
   } catch (err) {
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
   }
 });
 
-// ---------- 08: Withdraw & Balances ----------
+document.getElementById('cancelBtn').addEventListener('click', async () => {
+  const out = document.getElementById('acceptOut');
+  if (!requireClient(out)) return;
+  if (!currentAgreementId) { showOut(out, 'Open an agreement first.', 'err'); return; }
+  try {
+    showOut(out, 'Submitting transaction…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'cancel_agreement', args: [currentAgreementId], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Cancelled.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+    fetchAgreement(currentAgreementId);
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+document.getElementById('resolveBtn').addEventListener('click', async () => {
+  const out = document.getElementById('resolveOut');
+  if (!requireClient(out)) return;
+  if (!currentAgreementId) { showOut(out, 'Open an agreement first.', 'err'); return; }
+
+  const urls = parseLineList(document.getElementById('sourceUrls').value);
+  if (urls.length < 2 || urls.length > 6) {
+    showOut(out, 'Provide 2–6 source URLs (one per line).', 'err');
+    return;
+  }
+
+  try {
+    showOut(out, 'Submitting transaction — this triggers live fetch + LLM extraction under validator consensus, it can take a while…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'resolve_agreement', args: [currentAgreementId, urls], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization — this runs a real fetch + LLM extraction per source, so it can take a few minutes…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 5000, retries: 90,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Resolved.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : JSON.stringify(receipt, null, 2)}`, 'ok');
+    fetchAgreement(currentAgreementId);
+  } catch (err) {
+    const message = err?.message || String(err);
+    if (/timed out/i.test(message)) {
+      showOut(out, `${message}\n\nThis is just the browser giving up on waiting — the transaction may still finalize on-chain. Wait, then refresh this page.`, 'err');
+    } else {
+      showOut(out, 'Error: ' + message, 'err');
+    }
+  }
+});
+
+document.getElementById('expireBtn').addEventListener('click', async () => {
+  const out = document.getElementById('expireOut');
+  if (!requireClient(out)) return;
+  if (!currentAgreementId) { showOut(out, 'Open an agreement first.', 'err'); return; }
+  try {
+    showOut(out, 'Submitting transaction…');
+    const txHash = await client.writeContract({
+      address: CONTRACT_ADDRESS, functionName: 'expire_agreement', args: [currentAgreementId], value: 0,
+    });
+    showOut(out, `Transaction sent: ${txHash}\nWaiting for finalization…`);
+    const receipt = await client.waitForTransactionReceipt({
+      hash: txHash, status: 'FINALIZED', interval: 4000, retries: 30,
+    });
+    const result = extractReturnValue(receipt);
+    showOut(out, `Expired.\n\nTx: ${txHash}\n\n${result !== null ? JSON.stringify(result, null, 2) : 'See explorer.'}`, 'ok');
+    fetchAgreement(currentAgreementId);
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+
+// ------------------------------------------------------------------
+// WITHDRAW & BALANCES (#/withdraw)
+// ------------------------------------------------------------------
 document.getElementById('checkPendingBtn').addEventListener('click', async () => {
   const out = document.getElementById('pendingOut');
   const addr = document.getElementById('withdrawCheckAddr').value.trim();
@@ -978,7 +1140,22 @@ document.getElementById('contractBalanceBtn').addEventListener('click', async ()
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
   }
 });
-</script>
 
+document.getElementById('roleBtn').addEventListener('click', async () => {
+  const out = document.getElementById('roleOut');
+  const id = document.getElementById('roleId').value.trim();
+  const addr = document.getElementById('roleAddr').value.trim();
+  if (!id || !addr) { showOut(out, 'Enter both an agreement ID and an address.', 'err'); return; }
+  try {
+    showOut(out, 'Reading contract state…');
+    const role = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_role', args: [id, addr],
+    });
+    showOut(out, String(role), 'ok');
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+});
+</script>
 </body>
 </html>

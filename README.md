@@ -1,6 +1,6 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![GenLayer](https://img.shields.io/badge/GenLayer-genlayer--js-3E9B4F)
-![Tests](https://img.shields.io/badge/tests-199%2F199%20passing-3E9B4F)
+![Tests](https://img.shields.io/badge/tests-204%2F204%20passing-3E9B4F)
 
 # TrueStake
 
@@ -28,7 +28,7 @@ point `index.html`'s `CONTRACT_ADDRESS` at the resulting address — see
 ```
 contract.py     the Intelligent Contract (GenLayer / GenVM, Python)
 index.html      the entire frontend — HTML/CSS/JS, no build step
-tests/          contract.py's offline test suite (199/199 passing)
+tests/          contract.py's offline test suite (204/204 passing)
 README.md
 LICENSE
 ```
@@ -217,18 +217,35 @@ disclosed limitations.
 ## Frontend
 
 `index.html` is a single, dependency-free file (loads `genlayer-js` from
-`esm.sh` at runtime) with panels for every public method: create (with a
-GEN stake field), accept/cancel (with a "load exact amount from
-agreement" helper so party_b never has to guess or retype the stake by
-hand), resolve, expire, read (with a final-verdict hero, escrow fields,
-and a per-source evidence table), check role, total agreements, and a
-dedicated withdraw/balances panel (`get_pending_withdrawal`, `withdraw`,
-`get_contract_balance`). Every dynamic value on the page is written with
-`textContent` / `document.createElement` only — `innerHTML` is never used
-anywhere in the file, so no value returned from the contract or fetched
-off-chain can ever be interpreted as markup. GEN↔wei conversion is done
-with `BigInt` throughout, never floating-point, since wei amounts need
-exact integer precision.
+`esm.sh` at runtime) built as a real, multi-page, hash-routed single-page
+app rather than one flat form-covered page:
+
+- **`#/` — Explore.** Lists every agreement ever created (via the
+  contract's `list_agreements()` view), newest first, with a client-side
+  filter by ID, teams, or party address. Each row is a link straight to
+  that agreement's own page - browsing never requires already knowing an
+  ID.
+- **`#/create` — Create Agreement**, with a GEN stake field; on success
+  the app navigates straight to the new agreement's page (`#/agreement/<id>`)
+  rather than asking you to note the ID down anywhere.
+- **`#/agreement/<id>` — an agreement's own page**: the full record
+  (final-verdict hero, escrow fields, per-source evidence table), a "My
+  Role" box that automatically checks the connected wallet against *this*
+  agreement, and Accept/Cancel/Resolve/Expire actions that all act on the
+  agreement already open - none of them ask for an ID, and Accept's stake
+  field is pre-filled from the agreement's own on-chain `stake_amount`.
+- **`#/withdraw` — Withdraw & Balances**, plus a manual Check Role lookup
+  for an arbitrary (id, address) pair and a total-contract-balance check.
+
+Every route is a real, shareable, bookmarkable URL (e.g. linking directly
+to `index.html#/agreement/7`); switching between them never reloads the
+page and works with the browser's native back/forward buttons via the
+`hashchange` event - no framework needed for that. Every dynamic value on
+the page is written with `textContent` / `document.createElement` only -
+`innerHTML` is never used anywhere in the file, so no value returned from
+the contract or fetched off-chain can ever be interpreted as markup.
+GEN↔wei conversion is done with `BigInt` throughout, never
+floating-point, since wei amounts need exact integer precision.
 
 `CONTRACT_ADDRESS` is a placeholder — set it to your deployed contract's
 address before use (see [Deploying](#deploying)).
@@ -237,7 +254,7 @@ address before use (see [Deploying](#deploying)).
 
 ## Test suite
 
-199 offline `unittest` tests across five files, all passing:
+204 offline `unittest` tests across five files, all passing:
 
 - `test_party_binding_and_timing.py` — create/accept/cancel binding rules,
   deadline lead-time bounds, the 24h resolution window, `expire_agreement`,
@@ -264,7 +281,11 @@ address before use (see [Deploying](#deploying)).
   branches (party_a-only vs. both-parties-equally), automatic payout
   crediting on a real verdict (mocked evidence), `withdraw()` including
   double-withdraw rejection and additive credit across multiple
-  agreements, and access control on every money-affecting method.
+  agreements, access control on every money-affecting method, and
+  `list_agreements()` (empty-state, enumerates every created agreement,
+  newest-first ordering, summary fields matching the full record, and
+  reflecting status changes) - the enumeration the Explore page above is
+  built on.
 
 All tests use the same offline `genlayer` SDK stub pattern (see
 `tests/genlayer_stub/`): storage types behave like plain dicts/lists,
