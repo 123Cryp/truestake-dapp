@@ -3,7 +3,7 @@ name: Unzip uploaded project
 on:
   push:
     paths:
-      - "upload.zip"
+      - "*.zip"
 
 permissions:
   contents: write
@@ -14,10 +14,14 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Unzip upload.zip over the repo
+      - name: Unzip every zip at repo root over the repo
         run: |
-          unzip -o upload.zip -d .
-          rm -f upload.zip
+          shopt -s nullglob
+          for f in *.zip; do
+            echo "Extracting $f"
+            unzip -o "$f" -d .
+            rm -f "$f"
+          done
 
       - name: Commit extracted files
         run: |
