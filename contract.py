@@ -2093,3 +2093,174 @@ class TrueStake(gl.Contract):
         actual on-chain holdings, not derived from this contract's own
         bookkeeping."""
         return str(int(self.balance))
+
+    @gl.public.view
+    def get_stats(self) -> str:
+        """
+        Return a JSON object of aggregate, contract-wide statistics:
+
+            {
+              "total_agreements": int,
+              "status_counts": {
+                  "pending_acceptance": int, "open": int,
+                  "resolved": int, "expired": int, "cancelled": int
+              },
+              "resolved_with_winner": int,
+              "resolved_unresolved": int,
+              "total_escrowed_wei": str,
+              "total_paid_out_wei": str
+            }
+
+        "total_escrowed_wei" is the sum of `stake_amount` for every
+        agreement currently "open" (i.e. GEN actually locked in this
+        contract right now, pending a decision). "total_paid_out_wei"
+        is the sum of the full pot (both parties' stakes) for every
+        agreement that has been "resolved" with a non-"unresolved"
+        winner - i.e. GEN this contract has ever credited to a winner
+        via `resolve_agreement`, whether or not it has since been
+        withdrawn. Both figures are derived entirely from data already
+        public via `list_agreements()`/`get_agreement()`; this view
+        only saves a frontend (or anyone else) from re-summing that
+        data itself.
+        """
+        status_counts = {
+            "pending_acceptance": 0,
+            "open": 0,
+            "resolved": 0,
+            "expired": 0,
+            "cancelled": 0,
+        }
+        resolved_with_winner = 0
+        resolved_unresolved = 0
+        total_escrowed = 0
+        total_paid_out = 0
+
+        for agreement_id in self.all_agreement_ids:
+            record = json.loads(self.agreements[agreement_id])
+            status = record["status"]
+            if status in status_counts:
+                status_counts[status] += 1
+
+            stake = int(record["stake_amount"])
+            if status == "open":
+                total_escrowed += stake
+            elif status == "resolved":
+                if record.get("winner") not in (None, "unresolved"):
+                    resolved_with_winner += 1
+                    total_paid_out += stake * 2
+                else:
+                    resolved_unresolved += 1
+
+        return json.dumps(
+            {
+                "total_agreements": int(self.agreement_count),
+                "status_counts": status_counts,
+                "resolved_with_winner": resolved_with_winner,
+                "resolved_unresolved": resolved_unresolved,
+                "total_escrowed_wei": str(total_escrowed),
+                "total_paid_out_wei": str(total_paid_out),
+            }
+        )
+
+    @gl.public.view
+    def get_profile(self, address: str) -> str:
+        """
+        Return a JSON object summarizing one address's history across
+        every agreement it has ever been bound to as `party_a` or
+        `party_b`:
+
+            {
+              "address": str,
+              "total_agreements": int,
+              "as_party_a": int,
+              "as_party_b": int,
+              "wins": int,
+              "losses": int,
+              "status_counts": {
+                  "pending_acceptance": int, "open": int,
+                  "resolved": int, "expired": int, "cancelled": int
+              },
+              "total_staked_wei": str,
+              "pending_withdrawal_wei": str
+            }
+
+        "wins"/"losses" only count agreements that are "resolved" with
+        a non-"unresolved" winner (an indeterminate resolution, or an
+        agreement that is still open/cancelled/expired, counts as
+        neither). "total_staked_wei" sums this address's own
+        contribution (never the counterparty's) across every
+        agreement it has accepted into or created, regardless of that
+        agreement's current status - matching what `get_agreement`
+        already discloses per-agreement, just pre-totaled. Exists so
+        a frontend can build a per-address profile view without
+        walking every agreement_id itself.
+        """
+        normalized = self._address_to_str(address).lower()
+        status_counts = {
+            "pending_acceptance": 0,
+            "open": 0,
+            "resolved": 0,
+            "expired": 0,
+            "cancelled": 0,
+        }
+        as_party_a = 0
+        as_party_b = 0
+        wins = 0
+        losses = 0
+        total_staked = 0
+
+        for agreement_id in self.all_agreement_ids:
+            record = json.loads(self.agreements[agreement_id])
+            party_a = record["party_a"].lower()
+            party_b = record["party_b"].lower()
+
+            is_a = normalized == party_a
+            is_b = normalized == party_b
+            if not is_a and not is_b:
+                continue
+
+            if is_a:
+                as_party_a += 1
+            if is_b:
+                as_party_b += 1
+
+            status = record["status"]
+            if status in status_counts:
+                status_counts[status] += 1
+
+            # A party has its own stake escrowed starting from
+            # whichever call bound it (create_agreement for party_a,
+            # accept_agreement for party_b) - both sides always
+            # contribute the same stake_amount, so this address's own
+            # contribution is simply stake_amount once per agreement
+            # it is bound to, even once bound to both roles (which
+            # cannot happen: party_a and party_b are always distinct).
+            total_staked += int(record["stake_amount"])
+
+            winner = record.get("winner")
+            if status == "resolved" and winner not in (None, "unresolved"):
+                if (is_a and winner == "party_a") or (is_b and winner == "party_b"):
+                    wins += 1
+                else:
+                    losses += 1
+
+        key = self._address_key(normalized)
+        pending_withdrawal = (
+            str(int(self.pending_withdrawals[key]))
+            if key in self.pending_withdrawals
+            else "0"
+        )
+
+        return json.dumps(
+            {
+                "address": normalized,
+                "total_agreements": as_party_a + as_party_b,
+                "as_party_a": as_party_a,
+                "as_party_b": as_party_b,
+                "wins": wins,
+                "losses": losses,
+                "status_counts": status_counts,
+                "total_staked_wei": str(total_staked),
+                "pending_withdrawal_wei": pending_withdrawal,
+            }
+        )

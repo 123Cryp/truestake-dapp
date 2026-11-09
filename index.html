@@ -166,6 +166,34 @@
   .hint{ font-size:11.5px; color:var(--ink-faint); margin-top:4px; }
   .row2{ display:grid; grid-template-columns:1fr 1fr; gap:10px; }
 
+  .stat-strip{
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(110px, 1fr));
+    gap:10px;
+    margin:0 0 18px;
+  }
+  .stat-tile{
+    background:var(--paper-sunken);
+    border:1px solid var(--line);
+    border-radius:8px;
+    padding:12px 14px;
+  }
+  .stat-tile .stat-value{
+    font-family:'Oswald',sans-serif;
+    font-size:22px;
+    font-weight:600;
+    color:var(--iris-deep);
+    line-height:1.1;
+  }
+  .stat-tile .stat-label{
+    font-family:'IBM Plex Mono',monospace;
+    font-size:10.5px;
+    letter-spacing:.04em;
+    text-transform:uppercase;
+    color:var(--ink-dim);
+    margin-top:4px;
+  }
+
   button.primary, button.secondary{
     font-family:'IBM Plex Mono',monospace;
 
@@ -321,6 +349,7 @@
   <a href="#/" class="tab-link" data-route="explore">Explore</a>
   <a href="#/create" class="tab-link" data-route="create">Create Agreement</a>
   <a href="#/withdraw" class="tab-link" data-route="withdraw">Withdraw &amp; Balances</a>
+  <a href="#/profile" class="tab-link" data-route="profile">My Profile</a>
 </nav>
 
 <main>
@@ -328,6 +357,13 @@
   <!-- ============ ROUTE: #/  (Explore / Browse) ============ -->
   <section class="route" id="route-explore">
     <div class="col-full">
+
+      <section class="panel">
+        <h2>Contract Stats</h2>
+        <p class="desc">Aggregate, contract-wide totals from <code>get_stats()</code> — every agreement ever created, by current lifecycle stage.</p>
+        <div class="stat-strip" id="statStrip"></div>
+        <div class="out" id="statsOut"></div>
+      </section>
 
       <section class="panel">
         <h2>Explore Agreements</h2>
@@ -511,6 +547,31 @@
     </div>
   </section>
 
+  <!-- ============ ROUTE: #/profile ============ -->
+  <section class="route" id="route-profile">
+    <div class="col-full">
+
+      <section class="panel">
+        <h2>My Profile</h2>
+        <p class="desc">
+          Every agreement a given address has ever been bound to as either party, aggregated from
+          <code>get_profile(address)</code> — win/loss record, how much it has staked in total, and its
+          live withdrawable balance, all in one read.
+        </p>
+
+        <label for="profileAddr">Address</label>
+        <input type="text" id="profileAddr" placeholder="0… (defaults to your connected wallet)">
+        <button class="primary" id="profileLoadBtn" type="button">Load profile</button>
+        <p class="hint">Connect a wallet or start a test session first to auto-fill your own address.</p>
+
+        <div class="stat-strip" id="profileStatStrip" style="margin-top:16px;"></div>
+        <div id="profileStatusBreakdown"></div>
+        <div class="out" id="profileOut"></div>
+      </section>
+
+    </div>
+  </section>
+
 </main>
 
 <footer>
@@ -528,7 +589,7 @@ import { studionet } from "https://esm.sh/genlayer-js@latest/chains";
 // EDIT THIS after you deploy TrueStake's contract.py — paste the
 // deployed address here (from the Studio/explorer "Deployed at" field).
 // ------------------------------------------------------------------
-const CONTRACT_ADDRESS = "0x580B34a2499B1c6D9f9507c52b3dc2Ad5657Ac1d";
+const CONTRACT_ADDRESS = "0x65BEee2a91b59D692C0ca1c250268F3Bb2bdfa31";
 
 document.getElementById('contractAddrText').textContent = CONTRACT_ADDRESS;
 
@@ -717,6 +778,7 @@ function parseRoute(){
   if (parts.length === 0) return { name: 'explore' };
   if (parts[0] === 'create') return { name: 'create' };
   if (parts[0] === 'withdraw') return { name: 'withdraw' };
+  if (parts[0] === 'profile') return { name: 'profile' };
   if (parts[0] === 'agreement' && parts[1]) return { name: 'agreement', id: parts[1] };
   return { name: 'explore' };
 }
@@ -736,6 +798,10 @@ function router(){
     loadExplore();
   } else if (route.name === 'agreement') {
     loadAgreementRoute(route.id);
+  } else if (route.name === 'profile') {
+    const addrInput = document.getElementById('profileAddr');
+    if (!addrInput.value.trim() && account) addrInput.value = account;
+    if (addrInput.value.trim()) loadProfile();
   }
   // 'create' and 'withdraw' routes have no data to load on entry.
 }
@@ -805,8 +871,75 @@ async function loadExplore(){
   } catch (err) {
     showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
   }
+  loadStats();
 }
 document.getElementById('exploreRefreshBtn').addEventListener('click', loadExplore);
+
+// ---------- Contract Stats strip (#/, backed by get_stats()) ----------
+function statTile(value, label){
+  return makeEl('div', { className: 'stat-tile' }, [
+    makeEl('div', { className: 'stat-value', text: String(value) }),
+    makeEl('div', { className: 'stat-label', text: label }),
+  ]);
+}
+
+async function loadStats(){
+  const strip = document.getElementById('statStrip');
+  const out = document.getElementById('statsOut');
+  clearChildren(strip);
+  try {
+    const raw = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_stats', args: [],
+    });
+    const s = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    strip.appendChild(statTile(s.total_agreements, 'Total agreements'));
+    strip.appendChild(statTile(s.status_counts.open, 'Open (escrowed)'));
+    strip.appendChild(statTile(s.status_counts.resolved, 'Resolved'));
+    strip.appendChild(statTile(s.status_counts.pending_acceptance, 'Pending accept'));
+    strip.appendChild(statTile(s.status_counts.cancelled + s.status_counts.expired, 'Cancelled/expired'));
+    strip.appendChild(statTile(weiToGenString(s.total_escrowed_wei) + ' GEN', 'Currently escrowed'));
+    strip.appendChild(statTile(weiToGenString(s.total_paid_out_wei) + ' GEN', 'Total paid out'));
+    out.style.display = 'none';
+  } catch (err) {
+    showOut(out, 'Error loading stats: ' + (err?.message || String(err)), 'err');
+  }
+}
+
+// ---------- My Profile (#/profile, backed by get_profile(address)) ----------
+async function loadProfile(){
+  const addr = document.getElementById('profileAddr').value.trim();
+  const strip = document.getElementById('profileStatStrip');
+  const breakdown = document.getElementById('profileStatusBreakdown');
+  const out = document.getElementById('profileOut');
+  clearChildren(strip);
+  clearChildren(breakdown);
+  if (!addr) { showOut(out, 'Enter an address, or connect a wallet / start a test session.', 'err'); return; }
+  try {
+    showOut(out, 'Reading contract state…');
+    const raw = await readClient.readContract({
+      address: CONTRACT_ADDRESS, functionName: 'get_profile', args: [addr],
+    });
+    const p = typeof raw === 'string' ? JSON.parse(raw) : raw;
+    strip.appendChild(statTile(p.total_agreements, 'Total agreements'));
+    strip.appendChild(statTile(p.wins, 'Wins'));
+    strip.appendChild(statTile(p.losses, 'Losses'));
+    strip.appendChild(statTile(p.as_party_a, 'As party A'));
+    strip.appendChild(statTile(p.as_party_b, 'As party B'));
+    strip.appendChild(statTile(weiToGenString(p.total_staked_wei) + ' GEN', 'Total staked'));
+    strip.appendChild(statTile(weiToGenString(p.pending_withdrawal_wei) + ' GEN', 'Withdrawable now'));
+
+    const sc = p.status_counts;
+    breakdown.appendChild(makeEl('p', {
+      className: 'hint',
+      text: `By status — open: ${sc.open}, pending acceptance: ${sc.pending_acceptance}, ` +
+            `resolved: ${sc.resolved}, cancelled: ${sc.cancelled}, expired: ${sc.expired}`,
+    }));
+    out.style.display = 'none';
+  } catch (err) {
+    showOut(out, 'Error: ' + (err?.message || String(err)), 'err');
+  }
+}
+document.getElementById('profileLoadBtn').addEventListener('click', loadProfile);
 
 // ---------- Create Agreement ----------
 document.getElementById('createBtn').addEventListener('click', async () => {

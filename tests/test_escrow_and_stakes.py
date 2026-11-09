@@ -420,5 +420,161 @@ class ListAgreementsTests(unittest.TestCase):
         self.assertEqual(summary["status"], "cancelled")
 
 
+class GetStatsTests(unittest.TestCase):
+    """Coverage for the aggregate contract-wide stats view."""
+
+    def setUp(self):
+        self.c = make_contract()
+
+    def test_empty_before_any_agreement(self):
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["total_agreements"], 0)
+        self.assertEqual(stats["status_counts"]["open"], 0)
+        self.assertEqual(stats["total_escrowed_wei"], "0")
+        self.assertEqual(stats["total_paid_out_wei"], "0")
+
+    def test_counts_total_agreements(self):
+        create_funded(self.c, teams="Team A vs Team B")
+        create_funded(self.c, teams="Team C vs Team D")
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["total_agreements"], 2)
+
+    def test_status_counts_by_lifecycle_stage(self):
+        create_funded(self.c)  # pending_acceptance
+        create_and_accept(self.c)  # open
+        aid_cancelled = create_funded(self.c)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid_cancelled)
+
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["status_counts"]["pending_acceptance"], 1)
+        self.assertEqual(stats["status_counts"]["open"], 1)
+        self.assertEqual(stats["status_counts"]["cancelled"], 1)
+
+    def test_total_escrowed_counts_only_open_agreements(self):
+        create_and_accept(self.c, value=ONE_GEN)
+        create_funded(self.c, value=2 * ONE_GEN)  # still pending_acceptance
+        stats = json.loads(self.c.get_stats())
+        # Only the open one's stake_amount (per side) is "escrowed";
+        # the pending_acceptance one hasn't been matched/doubled yet.
+        self.assertEqual(stats["total_escrowed_wei"], str(ONE_GEN))
+
+    def test_total_paid_out_counts_full_pot_on_resolved_win(self):
+        aid = create_and_accept(self.c, value=ONE_GEN)
+        force_past_deadline(self.c, aid)
+        resolve_with_mocked_evidence(self.c, aid)
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["status_counts"]["resolved"], 1)
+        self.assertEqual(stats["resolved_with_winner"], 1)
+        self.assertEqual(stats["total_paid_out_wei"], str(2 * ONE_GEN))
+        # Once resolved, the stake is no longer "escrowed" (open).
+        self.assertEqual(stats["total_escrowed_wei"], "0")
+
+    def test_indeterminate_resolution_not_counted_as_paid_out(self):
+        # An indeterminate verdict deliberately leaves the agreement
+        # "open" (not "resolved") so a later resolve_agreement call
+        # with better evidence can still settle it - see contract.py's
+        # ESCROW / STAKE MODEL notes. So it stays counted as escrowed,
+        # not as a resolved/unresolved agreement.
+        aid = create_and_accept(self.c, value=ONE_GEN)
+        force_past_deadline(self.c, aid)
+        with patch.object(
+            gl.nondet.web, "render", side_effect=lambda url, mode="text": "unrelated page"
+        ), patch.object(
+            gl.nondet, "exec_prompt",
+            side_effect=lambda p, response_format="text":
+                "TEAM_MATCH: Unclear\nFRESHNESS: Unknown\nSCORE: Unclear\nCOMPARISON: Unclear",
+        ):
+            self.c.resolve_agreement(aid, ["https://espn.com/x", "https://bbc.com/x"])
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["resolved_with_winner"], 0)
+        self.assertEqual(stats["resolved_unresolved"], 0)
+        self.assertEqual(stats["status_counts"]["open"], 1)
+        self.assertEqual(stats["total_paid_out_wei"], "0")
+        self.assertEqual(stats["total_escrowed_wei"], str(ONE_GEN))
+
+
+class GetProfileTests(unittest.TestCase):
+    """Coverage for the per-address profile view."""
+
+    def setUp(self):
+        self.c = make_contract()
+
+    def test_unknown_address_has_zeroed_profile(self):
+        profile = json.loads(self.c.get_profile(STRANGER_ADDRESS))
+        self.assertEqual(profile["total_agreements"], 0)
+        self.assertEqual(profile["wins"], 0)
+        self.assertEqual(profile["losses"], 0)
+        self.assertEqual(profile["total_staked_wei"], "0")
+        self.assertEqual(profile["pending_withdrawal_wei"], "0")
+
+    def test_counts_role_correctly(self):
+        create_and_accept(self.c, value=ONE_GEN)
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_a["as_party_a"], 1)
+        self.assertEqual(profile_a["as_party_b"], 0)
+        self.assertEqual(profile_b["as_party_a"], 0)
+        self.assertEqual(profile_b["as_party_b"], 1)
+        self.assertEqual(profile_a["total_agreements"], 1)
+        self.assertEqual(profile_b["total_agreements"], 1)
+
+    def test_total_staked_is_own_contribution_only(self):
+        create_and_accept(self.c, value=3 * ONE_GEN)
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_a["total_staked_wei"], str(3 * ONE_GEN))
+        self.assertEqual(profile_b["total_staked_wei"], str(3 * ONE_GEN))
+
+    def test_win_credited_to_winner_only(self):
+        aid = create_and_accept(self.c, value=ONE_GEN)
+        force_past_deadline(self.c, aid)
+        resolve_with_mocked_evidence(self.c, aid)  # party_a wins
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_a["wins"], 1)
+        self.assertEqual(profile_a["losses"], 0)
+        self.assertEqual(profile_b["wins"], 0)
+        self.assertEqual(profile_b["losses"], 1)
+
+    def test_indeterminate_resolution_counts_as_neither(self):
+        aid = create_and_accept(self.c, value=ONE_GEN)
+        force_past_deadline(self.c, aid)
+        with patch.object(
+            gl.nondet.web, "render", side_effect=lambda url, mode="text": "unrelated page"
+        ), patch.object(
+            gl.nondet, "exec_prompt",
+            side_effect=lambda p, response_format="text":
+                "TEAM_MATCH: Unclear\nFRESHNESS: Unknown\nSCORE: Unclear\nCOMPARISON: Unclear",
+        ):
+            self.c.resolve_agreement(aid, ["https://espn.com/x", "https://bbc.com/x"])
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        self.assertEqual(profile_a["wins"], 0)
+        self.assertEqual(profile_a["losses"], 0)
+
+    def test_pending_withdrawal_reflected_in_profile(self):
+        aid = create_funded(self.c, value=ONE_GEN)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid)
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        self.assertEqual(profile_a["pending_withdrawal_wei"], str(ONE_GEN))
+
+    def test_address_case_insensitive(self):
+        create_and_accept(self.c, value=ONE_GEN)
+        profile_lower = json.loads(self.c.get_profile(PARTY_A_ADDRESS.lower()))
+        profile_upper = json.loads(
+            self.c.get_profile("0x" + "11" * 20)
+        )
+        self.assertEqual(profile_lower["total_agreements"], 1)
+        self.assertEqual(profile_upper["total_agreements"], 1)
+
+    def test_status_counts_per_address(self):
+        create_funded(self.c)  # party_a only, pending_acceptance
+        create_and_accept(self.c)  # party_a + party_b, open
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        self.assertEqual(profile_a["status_counts"]["pending_acceptance"], 1)
+        self.assertEqual(profile_a["status_counts"]["open"], 1)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,6 +1,6 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![GenLayer](https://img.shields.io/badge/GenLayer-genlayer--js-3E9B4F)
-![Tests](https://img.shields.io/badge/tests-204%2F204%20passing-3E9B4F)
+![Tests](https://img.shields.io/badge/tests-218%2F218%20passing-3E9B4F)
 
 # TrueStake
 
@@ -28,7 +28,7 @@ point `index.html`'s `CONTRACT_ADDRESS` at the resulting address — see
 ```
 contract.py     the Intelligent Contract (GenLayer / GenVM, Python)
 index.html      the entire frontend — HTML/CSS/JS, no build step
-tests/          contract.py's offline test suite (204/204 passing)
+tests/          contract.py's offline test suite (218/218 passing)
 README.md
 LICENSE
 ```
@@ -236,6 +236,15 @@ app rather than one flat form-covered page:
   field is pre-filled from the agreement's own on-chain `stake_amount`.
 - **`#/withdraw` — Withdraw & Balances**, plus a manual Check Role lookup
   for an arbitrary (id, address) pair and a total-contract-balance check.
+- **`#/profile` — My Profile** *(new)*. Reads `get_profile(address)` for
+  a single address — defaulting to the connected wallet, or any address
+  typed in — and shows its total agreements, win/loss record (resolved
+  agreements only; indeterminate or still-open ones count as neither),
+  role split (party A vs. party B), total GEN ever staked, current
+  withdrawable balance, and a per-status breakdown. The Explore page
+  (`#/`) also now opens on a **contract-wide stats strip** backed by the
+  new `get_stats()` view: total agreements, counts by lifecycle stage,
+  GEN currently escrowed, and GEN paid out to winners so far.
 
 Every route is a real, shareable, bookmarkable URL (e.g. linking directly
 to `index.html#/agreement/7`); switching between them never reloads the
@@ -254,7 +263,7 @@ address before use (see [Deploying](#deploying)).
 
 ## Test suite
 
-204 offline `unittest` tests across five files, all passing:
+218 offline `unittest` tests across five files, all passing:
 
 - `test_party_binding_and_timing.py` — create/accept/cancel binding rules,
   deadline lead-time bounds, the 24h resolution window, `expire_agreement`,
@@ -285,7 +294,16 @@ address before use (see [Deploying](#deploying)).
   `list_agreements()` (empty-state, enumerates every created agreement,
   newest-first ordering, summary fields matching the full record, and
   reflecting status changes) - the enumeration the Explore page above is
-  built on.
+  built on - plus (new) `get_stats()` (empty-state, per-lifecycle-stage
+  counts, GEN currently escrowed counted only for "open" agreements, GEN
+  paid out counted only on a real winner, and confirming an indeterminate
+  resolution - which leaves the agreement "open" rather than "resolved" -
+  is never counted as paid out) and `get_profile(address)` (unknown
+  address is all-zero, role split, win/loss record tied to the actual
+  winner field, total own-stake summed across every agreement regardless
+  of status, live pending-withdrawal balance, case-insensitive address
+  matching, and per-status breakdown) - the two views the new Contract
+  Stats strip and My Profile page above are built on.
 
 All tests use the same offline `genlayer` SDK stub pattern (see
 `tests/genlayer_stub/`): storage types behave like plain dicts/lists,
