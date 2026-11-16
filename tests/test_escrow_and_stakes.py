@@ -451,13 +451,54 @@ class GetStatsTests(unittest.TestCase):
         self.assertEqual(stats["status_counts"]["open"], 1)
         self.assertEqual(stats["status_counts"]["cancelled"], 1)
 
-    def test_total_escrowed_counts_only_open_agreements(self):
-        create_and_accept(self.c, value=ONE_GEN)
-        create_funded(self.c, value=2 * ONE_GEN)  # still pending_acceptance
+    def test_total_escrowed_counts_pending_and_open_correctly(self):
+        # An "open" agreement has BOTH sides' stakes locked (2x), a
+        # "pending_acceptance" one has only party_a's (1x) - this was
+        # the steward-flagged bug: the prior version under-counted an
+        # open agreement as 1x and ignored pending_acceptance entirely.
+        create_and_accept(self.c, value=ONE_GEN)  # open -> 2 * ONE_GEN locked
+        create_funded(self.c, value=2 * ONE_GEN)  # pending_acceptance -> 2 * ONE_GEN locked
         stats = json.loads(self.c.get_stats())
-        # Only the open one's stake_amount (per side) is "escrowed";
-        # the pending_acceptance one hasn't been matched/doubled yet.
-        self.assertEqual(stats["total_escrowed_wei"], str(ONE_GEN))
+        self.assertEqual(stats["total_escrowed_wei"], str(2 * ONE_GEN + 2 * ONE_GEN))
+
+    def test_total_escrowed_excludes_cancelled_and_expired(self):
+        aid_cancelled = create_funded(self.c, value=ONE_GEN)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid_cancelled)
+
+        aid_expired_pending = create_funded(self.c, value=ONE_GEN)
+        force_past_deadline(self.c, aid_expired_pending)
+        self.c.expire_agreement(aid_expired_pending)
+
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(stats["status_counts"]["cancelled"], 1)
+        self.assertEqual(stats["status_counts"]["expired"], 1)
+        self.assertEqual(stats["total_escrowed_wei"], "0")
+
+    def test_financial_totals_verified_together(self):
+        # Steward-requested check: a pending, an accepted, and a
+        # cancelled agreement together, with every wei the contract
+        # holds accounted for as either still-escrowed or sitting in
+        # someone's pending_withdrawals - never both, never neither.
+        create_and_accept(self.c, value=ONE_GEN)  # open: 2*ONE_GEN escrowed
+        create_funded(self.c, value=3 * ONE_GEN)  # pending: 3*ONE_GEN escrowed
+        aid_cancelled = create_funded(self.c, value=5 * ONE_GEN)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid_cancelled)  # 5*ONE_GEN -> pending_withdrawals
+
+        stats = json.loads(self.c.get_stats())
+        total_escrowed = int(stats["total_escrowed_wei"])
+        self.assertEqual(total_escrowed, 2 * ONE_GEN + 3 * ONE_GEN)
+
+        total_pending_withdrawals = int(
+            self.c.get_pending_withdrawal(PARTY_A_ADDRESS)
+        )
+        self.assertEqual(total_pending_withdrawals, 5 * ONE_GEN)
+
+        contract_balance = int(self.c.get_contract_balance())
+        self.assertEqual(
+            total_escrowed + total_pending_withdrawals, contract_balance
+        )
 
     def test_total_paid_out_counts_full_pot_on_resolved_win(self):
         aid = create_and_accept(self.c, value=ONE_GEN)
@@ -491,7 +532,8 @@ class GetStatsTests(unittest.TestCase):
         self.assertEqual(stats["resolved_unresolved"], 0)
         self.assertEqual(stats["status_counts"]["open"], 1)
         self.assertEqual(stats["total_paid_out_wei"], "0")
-        self.assertEqual(stats["total_escrowed_wei"], str(ONE_GEN))
+        # "open" means both sides' stakes are still locked (2x).
+        self.assertEqual(stats["total_escrowed_wei"], str(2 * ONE_GEN))
 
 
 class GetProfileTests(unittest.TestCase):
@@ -574,6 +616,59 @@ class GetProfileTests(unittest.TestCase):
         profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
         self.assertEqual(profile_a["status_counts"]["pending_acceptance"], 1)
         self.assertEqual(profile_a["status_counts"]["open"], 1)
+
+    def test_party_b_not_staked_until_acceptance(self):
+        # Steward-flagged bug: party_b was being credited with
+        # stake_amount the moment it was merely NAMED on a still-
+        # pending_acceptance agreement, even though accept_agreement
+        # (the only thing that actually moves party_b's GEN into this
+        # contract) had not run yet.
+        create_funded(self.c, value=ONE_GEN)  # party_b named, not accepted
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_a["total_staked_wei"], str(ONE_GEN))
+        self.assertEqual(profile_b["total_staked_wei"], "0")
+
+    def test_party_b_staked_counted_after_acceptance(self):
+        aid = create_funded(self.c, value=ONE_GEN)
+        set_caller(PARTY_B_ADDRESS)
+        call_payable(self.c, "accept_agreement", ONE_GEN, aid)
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_b["total_staked_wei"], str(ONE_GEN))
+
+    def test_party_b_stake_stays_counted_after_later_expiry(self):
+        # Once accepted, party_b's contribution is historical fact -
+        # a later no-fault expiry (full window lapsed unresolved)
+        # refunds the GEN but doesn't erase that it was ever deposited.
+        aid = create_and_accept(self.c, value=ONE_GEN)
+        force_window_closed(self.c, aid)
+        self.c.expire_agreement(aid)
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+        self.assertEqual(profile_b["total_staked_wei"], str(ONE_GEN))
+        self.assertEqual(profile_b["pending_withdrawal_wei"], str(ONE_GEN))
+
+    def test_financial_totals_verified_together_per_profile(self):
+        # Same steward-requested cross-check as GetStatsTests, viewed
+        # from each party's own profile instead of the aggregate view.
+        aid_open = create_and_accept(self.c, value=ONE_GEN)
+        aid_pending = create_funded(self.c, value=2 * ONE_GEN)
+        aid_cancelled = create_funded(self.c, value=4 * ONE_GEN)
+        set_caller(PARTY_A_ADDRESS)
+        self.c.cancel_agreement(aid_cancelled)
+
+        profile_a = json.loads(self.c.get_profile(PARTY_A_ADDRESS))
+        profile_b = json.loads(self.c.get_profile(PARTY_B_ADDRESS))
+
+        # party_a staked into all three (1 + 2 + 4); party_b only
+        # into the one it actually accepted (1).
+        self.assertEqual(profile_a["total_staked_wei"], str(ONE_GEN + 2 * ONE_GEN + 4 * ONE_GEN))
+        self.assertEqual(profile_b["total_staked_wei"], str(ONE_GEN))
+        self.assertEqual(profile_a["pending_withdrawal_wei"], str(4 * ONE_GEN))
+
+        stats = json.loads(self.c.get_stats())
+        self.assertEqual(
+            int(stats["total_escrowed_wei"]), 2 * ONE_GEN + 2 * ONE_GEN
+        )
 
 
 if __name__ == "__main__":

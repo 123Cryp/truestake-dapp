@@ -2111,17 +2111,37 @@ class TrueStake(gl.Contract):
               "total_paid_out_wei": str
             }
 
-        "total_escrowed_wei" is the sum of `stake_amount` for every
-        agreement currently "open" (i.e. GEN actually locked in this
-        contract right now, pending a decision). "total_paid_out_wei"
-        is the sum of the full pot (both parties' stakes) for every
-        agreement that has been "resolved" with a non-"unresolved"
-        winner - i.e. GEN this contract has ever credited to a winner
-        via `resolve_agreement`, whether or not it has since been
-        withdrawn. Both figures are derived entirely from data already
-        public via `list_agreements()`/`get_agreement()`; this view
-        only saves a frontend (or anyone else) from re-summing that
-        data itself.
+        "total_escrowed_wei" is the GEN actually locked in this
+        contract right now across every still-live agreement: a
+        "pending_acceptance" agreement has only party_a's stake
+        locked (accept_agreement is the only thing that brings
+        party_b's stake into escrow), so it contributes exactly
+        `stake_amount`; an "open" agreement has both parties' stakes
+        locked, so it contributes `stake_amount * 2`. A "resolved",
+        "cancelled", or "expired" agreement contributes nothing here -
+        its stake(s) have already either been paid out or moved into
+        `pending_withdrawals` (see `get_pending_withdrawal`/
+        `get_contract_balance`), neither of which is "escrowed for an
+        agreement" any more. "total_paid_out_wei" is the sum of the
+        full pot (both parties' stakes) for every agreement that has
+        been "resolved" with a non-"unresolved" winner - i.e. GEN this
+        contract has ever credited to a winner via `resolve_agreement`,
+        whether or not it has since been withdrawn. Both figures are
+        derived entirely from data already public via
+        `list_agreements()`/`get_agreement()`; this view only saves a
+        frontend (or anyone else) from re-summing that data itself.
+
+        As an invariant, at any point in time:
+        `total_escrowed_wei` + (sum of every address's
+        `get_pending_withdrawal`) should equal `get_contract_balance()`
+        minus whatever has actually left the contract via `withdraw()`
+        - i.e. every wei the contract is currently holding is either
+        still escrowed for a live agreement or sitting in someone's
+        pending_withdrawals, never both and never neither. See
+        `GetStatsTests`/`GetProfileTests` in
+        tests/test_escrow_and_stakes.py for a test exercising this
+        across a pending, an accepted, and a cancelled agreement
+        together.
         """
         status_counts = {
             "pending_acceptance": 0,
@@ -2142,8 +2162,10 @@ class TrueStake(gl.Contract):
                 status_counts[status] += 1
 
             stake = int(record["stake_amount"])
-            if status == "open":
+            if status == "pending_acceptance":
                 total_escrowed += stake
+            elif status == "open":
+                total_escrowed += stake * 2
             elif status == "resolved":
                 if record.get("winner") not in (None, "unresolved"):
                     resolved_with_winner += 1
@@ -2189,11 +2211,22 @@ class TrueStake(gl.Contract):
         agreement that is still open/cancelled/expired, counts as
         neither). "total_staked_wei" sums this address's own
         contribution (never the counterparty's) across every
-        agreement it has accepted into or created, regardless of that
-        agreement's current status - matching what `get_agreement`
-        already discloses per-agreement, just pre-totaled. Exists so
-        a frontend can build a per-address profile view without
-        walking every agreement_id itself.
+        agreement it has accepted into or created - but ONLY once that
+        contribution has actually been deposited. party_a always
+        deposits its stake immediately at create_agreement, so a
+        party_a agreement counts from the moment it exists, in any
+        status. party_b deposits nothing until accept_agreement
+        actually runs (`agreement["accepted_at"]` is still None while
+        "pending_acceptance"), so a party_b agreement counts only once
+        `accepted_at` is set - which also means it is never later
+        un-counted, since the only way out of "pending_acceptance" is
+        cancel_agreement (party_a-only) or an acceptance-less expiry,
+        neither of which party_b's own stake was ever part of. This
+        matches what `get_agreement` already discloses per-agreement
+        (an honest "has this address's money actually moved into this
+        contract" figure, not a projection of what it's committed to),
+        just pre-totaled. Exists so a frontend can build a per-address
+        profile view without walking every agreement_id itself.
         """
         normalized = self._address_to_str(address).lower()
         status_counts = {
@@ -2228,14 +2261,15 @@ class TrueStake(gl.Contract):
             if status in status_counts:
                 status_counts[status] += 1
 
-            # A party has its own stake escrowed starting from
-            # whichever call bound it (create_agreement for party_a,
-            # accept_agreement for party_b) - both sides always
-            # contribute the same stake_amount, so this address's own
-            # contribution is simply stake_amount once per agreement
-            # it is bound to, even once bound to both roles (which
-            # cannot happen: party_a and party_b are always distinct).
-            total_staked += int(record["stake_amount"])
+            # party_a's stake is locked the moment the agreement
+            # exists; party_b's is locked only once accept_agreement
+            # has actually run (accepted_at is still None while
+            # "pending_acceptance" - see the docstring above).
+            stake = int(record["stake_amount"])
+            if is_a:
+                total_staked += stake
+            elif is_b and record.get("accepted_at") is not None:
+                total_staked += stake
 
             winner = record.get("winner")
             if status == "resolved" and winner not in (None, "unresolved"):

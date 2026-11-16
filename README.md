@@ -1,6 +1,6 @@
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![GenLayer](https://img.shields.io/badge/GenLayer-genlayer--js-3E9B4F)
-![Tests](https://img.shields.io/badge/tests-218%2F218%20passing-3E9B4F)
+![Tests](https://img.shields.io/badge/tests-224%2F224%20passing-3E9B4F)
 
 # TrueStake
 
@@ -28,7 +28,7 @@ point `index.html`'s `CONTRACT_ADDRESS` at the resulting address — see
 ```
 contract.py     the Intelligent Contract (GenLayer / GenVM, Python)
 index.html      the entire frontend — HTML/CSS/JS, no build step
-tests/          contract.py's offline test suite (218/218 passing)
+tests/          contract.py's offline test suite (224/224 passing)
 README.md
 LICENSE
 ```
@@ -263,7 +263,7 @@ address before use (see [Deploying](#deploying)).
 
 ## Test suite
 
-218 offline `unittest` tests across five files, all passing:
+224 offline `unittest` tests across five files, all passing:
 
 - `test_party_binding_and_timing.py` — create/accept/cancel binding rules,
   deadline lead-time bounds, the 24h resolution window, `expire_agreement`,
@@ -294,16 +294,25 @@ address before use (see [Deploying](#deploying)).
   `list_agreements()` (empty-state, enumerates every created agreement,
   newest-first ordering, summary fields matching the full record, and
   reflecting status changes) - the enumeration the Explore page above is
-  built on - plus (new) `get_stats()` (empty-state, per-lifecycle-stage
-  counts, GEN currently escrowed counted only for "open" agreements, GEN
-  paid out counted only on a real winner, and confirming an indeterminate
+  built on - plus `get_stats()` (empty-state, per-lifecycle-stage
+  counts, GEN currently escrowed - a "pending_acceptance" agreement
+  counts party_a's stake only, an "open" one counts both sides -, GEN
+  paid out counted only on a real winner, confirming an indeterminate
   resolution - which leaves the agreement "open" rather than "resolved" -
-  is never counted as paid out) and `get_profile(address)` (unknown
-  address is all-zero, role split, win/loss record tied to the actual
-  winner field, total own-stake summed across every agreement regardless
-  of status, live pending-withdrawal balance, case-insensitive address
-  matching, and per-status breakdown) - the two views the new Contract
-  Stats strip and My Profile page above are built on.
+  is never counted as paid out, and confirming cancelled/expired
+  agreements contribute nothing to current escrow) and
+  `get_profile(address)` (unknown address is all-zero, role split,
+  win/loss record tied to the actual winner field, party_a's stake
+  counted from creation but party_b's only once `accepted_at` is set
+  - never while merely named on a still-pending agreement -, live
+  pending-withdrawal balance, case-insensitive address matching, and
+  per-status breakdown) - the two views the Contract Stats strip and
+  My Profile page above are built on. A combined test
+  (`test_financial_totals_verified_together*`) exercises a pending,
+  an accepted, and a cancelled-before-acceptance agreement together
+  and checks the invariant `total_escrowed_wei` (from `get_stats`) +
+  every address's `pending_withdrawal_wei` (from `get_profile`/
+  `get_pending_withdrawal`) == `get_contract_balance()`.
 
 All tests use the same offline `genlayer` SDK stub pattern (see
 `tests/genlayer_stub/`): storage types behave like plain dicts/lists,
